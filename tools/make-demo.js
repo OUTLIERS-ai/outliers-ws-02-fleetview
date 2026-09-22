@@ -3,17 +3,26 @@
 // see FleetView working without touching your real history. Used by the tests
 // and for the guide's screenshots.
 //
-//   node tools/make-demo.js <root>            write the demo once
-//   node tools/make-demo.js <root> --live     keep 2 sessions "working" (Ctrl+C to stop)
+//   npm run demo                               the whole demo in 1 command: made-up sessions in a
+//                                              temp folder, FleetView on port 3011, 2 sessions kept
+//                                              "working". Open http://localhost:3011/graph.html.
+//                                              Ctrl+C stops it. Works the same in PowerShell, cmd and bash.
+//   node tools/make-demo.js <root>             only write the made-up sessions (used by the tests)
+//   node tools/make-demo.js <root> --live      write them and keep 2 sessions "working"
 //
-// It also writes <root>/fleetview-demo-config.json with the demo folders.
+// It also writes <root>/fleetview-demo-config.json (port 3011, so it never clashes
+// with your own FleetView on 3010).
 'use strict';
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
-const root = process.argv[2];
-if (!root) { console.error('usage: node tools/make-demo.js <root-folder> [--live]'); process.exit(2); }
-const live = process.argv.includes('--live');
+const serve = process.argv.includes('--serve');
+const argRoot = process.argv.slice(2).find(a => !a.startsWith('--'));
+const root = argRoot || (serve ? path.join(os.tmpdir(), 'fleetview-demo') : '');
+if (!root) { console.error('usage: npm run demo   (or: node tools/make-demo.js <empty-folder> [--live])'); process.exit(2); }
+const live = serve || process.argv.includes('--live');
+const DEMO_PORT = 3011;
 const projects = path.join(root, '.claude', 'projects');
 
 const FOLDERS = [
@@ -26,6 +35,9 @@ const ago = (sec) => new Date(Date.now() - sec * 1000).toISOString();
 const encode = (cwd) => cwd.replace(/[^A-Za-z0-9]/g, '-');
 let seq = 0;
 const id = (p) => `${p}_${(++seq).toString(36).padStart(6, '0')}`;
+// npm run demo reuses its own temp folder: clear the old made-up sessions there
+// first. Never deletes anything in a folder you name yourself.
+if (!argRoot && serve && fs.existsSync(projects)) fs.rmSync(projects, { recursive: true, force: true });
 
 function user(sessionId, cwd, ts, text, extra = {}) {
   return { type: 'user', sessionId, cwd, gitBranch: extra.branch || 'main', version: '2.3.0', timestamp: ts,
@@ -34,7 +46,7 @@ function user(sessionId, cwd, ts, text, extra = {}) {
 function assistant(sessionId, cwd, ts, model, usage, content, extra = {}) {
   return { type: 'assistant', sessionId, cwd, gitBranch: extra.branch || 'main', version: '2.3.0', timestamp: ts,
     uuid: id('a'), isSidechain: !!extra.agentId, agentId: extra.agentId,
-    message: { id: extra.msgId || id('msg'), model, role: 'assistant', type: 'message', stop_reason: extra.stop === false ? null : 'end_turn', content,
+    message: { id: extra.msgId || id('msg'), model, role: 'assistant', type: 'message', stop_reason: extra.stop === false ? null : (extra.stopReason || 'end_turn'), content,
       usage: { input_tokens: 6, output_tokens: 900, cache_creation_input_tokens: 4000, cache_read_input_tokens: 60000,
         cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 4000 }, service_tier: 'standard', ...usage } } };
 }
@@ -79,17 +91,20 @@ function build() {
   fs.writeFileSync(path.join(projects, encode(brain), S.brainActive, 'subagents', `agent-${SUB_ID}.meta.json`),
     JSON.stringify({ agentType: 'note-finder', description: 'Find bookkeeping review notes' }));
 
-  // 2. Second Brain, idle since this morning (Sonnet 5).
+  // 2. Second Brain, idle: the member pressed Esc 40 minutes ago (Sonnet 5).
   files[path.join(projects, encode(brain), S.brainIdle + '.jsonl')] = [
-    user(S.brainIdle, brain, ago(3 * 3600), 'Write today\'s daily note'),
-    assistant(S.brainIdle, brain, ago(3 * 3600 - 30), 'claude-sonnet-5', { output_tokens: 5200 }, text('Daily note written.')),
+    user(S.brainIdle, brain, ago(2400), 'Write today\'s daily note'),
+    assistant(S.brainIdle, brain, ago(2380), 'claude-sonnet-5', { output_tokens: 5200 }, tool('Write', 'C:\\Demo\\Second Brain\\Daily\\today.md'), { stopReason: 'tool_use' }),
+    user(S.brainIdle, brain, ago(2370), [{ type: 'text', text: '[Request interrupted by user for tool use]' }]),
   ];
 
-  // 3. CRM, finished a reply and waiting for you.
+  // 3. CRM, finished a reply 4 minutes ago and waiting for you ever since.
+  //    The bookkeeping lines Claude Code writes after a reply follow it, as in a real log.
   files[path.join(projects, encode(crm), S.crmWaiting + '.jsonl')] = [
-    user(S.crmWaiting, crm, ago(90), 'Who should I follow up with today?', { branch: 'follow-ups' }),
-    assistant(S.crmWaiting, crm, ago(60), 'claude-opus-5', { output_tokens: 3100, cache_read_input_tokens: 70000 }, tool('Read', 'C:\\Demo\\CRM\\Today.md'), { branch: 'follow-ups' }),
-    assistant(S.crmWaiting, crm, ago(8), 'claude-opus-5', { output_tokens: 1400, cache_read_input_tokens: 76000 }, text('Three people to follow up: Sam the bookkeeper, Priya Shah Design, and Leo at Northside Joinery.'), { branch: 'follow-ups' }),
+    user(S.crmWaiting, crm, ago(300), 'Who should I follow up with today?', { branch: 'follow-ups' }),
+    assistant(S.crmWaiting, crm, ago(280), 'claude-opus-5', { output_tokens: 3100, cache_read_input_tokens: 70000 }, tool('Read', 'C:\\Demo\\CRM\\Today.md'), { branch: 'follow-ups', stopReason: 'tool_use' }),
+    assistant(S.crmWaiting, crm, ago(240), 'claude-opus-5', { output_tokens: 1400, cache_read_input_tokens: 76000 }, text('Three people to follow up: Sam the bookkeeper, Priya Shah Design, and Leo at Northside Joinery. Want me to draft the 3 messages?'), { branch: 'follow-ups' }),
+    { type: 'system', subtype: 'turn_duration', sessionId: S.crmWaiting, timestamp: ago(239), durationMs: 61000 },
   ];
 
   // 4. CRM, a long 1M-context session (model id ends in [1m]; last turn 420,000 tokens).
@@ -140,7 +155,7 @@ function build() {
   };
   const usageFile = path.join(root, 'fleetview-demo-usage.json');
   fs.writeFileSync(usageFile, JSON.stringify(usageDemo, null, 2));
-  const cfg = { port: 3010, folders: FOLDERS, projects_dir: projects, usage: { enabled: false } };
+  const cfg = { port: DEMO_PORT, folders: FOLDERS, projects_dir: projects, usage: { enabled: false } };
   const cfgFile = path.join(root, 'fleetview-demo-config.json');
   fs.writeFileSync(cfgFile + '.tmp', JSON.stringify(cfg, null, 2));
   fs.renameSync(cfgFile + '.tmp', cfgFile);
@@ -149,9 +164,20 @@ function build() {
 
 const result = build();
 if (require.main === module) {
-  console.log(JSON.stringify(result));
+  if (!serve) console.log(JSON.stringify(result));
+  if (serve) {
+    // Start FleetView in this same process on the demo settings.
+    process.env.FLEETVIEW_CONFIG = result.config;
+    process.env.FLEETVIEW_USAGE_FIXTURE = result.usageDemo;
+    delete process.env.PORT;
+    console.log('Made-up sessions written to ' + result.projects);
+    console.log('Starting the FleetView demo. Open http://localhost:' + DEMO_PORT + '/graph.html   (Ctrl+C to stop)');
+    require('../watcher.js');
+  }
   if (live) {
     // Keep the two "working" sessions and the subagent fresh so they stay green.
+    // Steps are written with no stop reason (a reply still in progress), so turn
+    // counts do not climb. The waiting session is NOT touched: it stays amber by itself.
     const brain = FOLDERS[0].path, crm = FOLDERS[1].path, content = FOLDERS[2].path;
     const steps = [['Read', 'Inbox\\2026-09-19 notes.md'], ['Edit', 'Projects\\Bookkeeping review.md'], ['Grep', ''], ['Write', 'Projects\\Website refresh.md']];
     let step = 0;
@@ -159,13 +185,11 @@ if (require.main === module) {
       const [toolName, rel] = steps[step++ % steps.length];
       const add = (file, ev) => fs.appendFileSync(file, JSON.stringify(ev) + '\n');
       add(path.join(projects, encode(brain), S.brainActive + '.jsonl'),
-        assistant(S.brainActive, brain, ago(0), 'claude-opus-5', { output_tokens: 600, cache_read_input_tokens: 121000 }, tool(toolName, rel ? 'C:\\Demo\\Second Brain\\' + rel : '')));
+        assistant(S.brainActive, brain, ago(0), 'claude-opus-5', { output_tokens: 600, cache_read_input_tokens: 121000 }, tool(toolName, rel ? 'C:\\Demo\\Second Brain\\' + rel : ''), { stop: false }));
       add(path.join(projects, encode(brain), S.brainActive, 'subagents', `agent-${SUB_ID}.jsonl`),
-        assistant(S.brainActive, brain, ago(0), 'claude-haiku-4-5-20251001', { output_tokens: 300, cache_read_input_tokens: 41000 }, tool('Grep'), { agentId: SUB_ID }));
-      add(path.join(projects, encode(crm), S.crmWaiting + '.jsonl'),
-        assistant(S.crmWaiting, crm, ago(6), 'claude-opus-5', { output_tokens: 0, cache_read_input_tokens: 76000 }, text('Want me to draft the three follow-up messages?'), { branch: 'follow-ups', msgId: 'msg_waiting_live' }));
+        assistant(S.brainActive, brain, ago(0), 'claude-haiku-4-5-20251001', { output_tokens: 300, cache_read_input_tokens: 41000 }, tool('Grep'), { agentId: SUB_ID, stop: false }));
       add(path.join(projects, encode(content), S.contentWorking + '.jsonl'),
-        assistant(S.contentWorking, content, ago(0), 'claude-fable-5-1', { output_tokens: 500, cache_read_input_tokens: 53000 }, tool('Write', 'C:\\Demo\\Content Engine\\drafts\\idea-2.md'), { branch: 'drafts' }));
+        assistant(S.contentWorking, content, ago(0), 'claude-fable-5-1', { output_tokens: 500, cache_read_input_tokens: 53000 }, tool('Write', 'C:\\Demo\\Content Engine\\drafts\\idea-2.md'), { branch: 'drafts', stop: false }));
     }, 6000);
   }
 }

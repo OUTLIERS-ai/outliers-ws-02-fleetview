@@ -135,3 +135,190 @@ def test_start_hidden_then_stop(tmp_path):
     time.sleep(1)
     with pytest.raises(OSError):
         urllib.request.urlopen("http://127.0.0.1:%d/api/meta" % port, timeout=2)
+
+
+# ---------- faults found in the 2026-09-22 review; each test was written before its fix ----------
+import importlib.util
+import socket
+import time
+import urllib.request
+
+HAS_LIBS = (HERE / "node_modules" / "express").is_dir()
+
+
+def load_install():
+    spec = importlib.util.spec_from_file_location("fv_install", str(INSTALL))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def free_port():
+    s = socket.socket(); s.bind(("127.0.0.1", 0)); p = s.getsockname()[1]; s.close()
+    return p
+
+
+def answers(port, timeout=1.0):
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:%d/api/meta" % port, timeout=timeout) as r:
+            return json.loads(r.read())
+    except OSError:
+        return None
+
+
+def wait_until(fn, secs=15):
+    end = time.time() + secs
+    while time.time() < end:
+        v = fn()
+        if v:
+            return v
+        time.sleep(0.25)
+    return fn()
+
+
+def alive(pid):
+    if sys.platform == "win32":
+        out = subprocess.run(["tasklist", "/FI", "PID eq %d" % pid, "/NH"], capture_output=True, text=True,
+                             creationflags=NO_WINDOW).stdout
+        return str(pid) in out
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def test_node_minimum_is_20_19():
+    m = load_install()
+    assert m.node_version_ok("v18.20.4") is False
+    assert m.node_version_ok("v20.18.3") is False
+    assert m.node_version_ok("v20.19.0") is True
+    assert m.node_version_ok("v21.7.3") is True
+    assert m.node_version_ok("v22.0.0") is True
+    assert m.node_version_ok("garbage") is False
+
+
+def test_config_example_is_valid_json():
+    cfg = json.loads((HERE / "config.example.json").read_text(encoding="utf-8"))
+    assert cfg["port"] == 3010 and cfg["folders"]
+
+
+def test_stop_never_kills_an_unrelated_process(tmp_path):
+    env = env_for(tmp_path)
+    other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], creationflags=NO_WINDOW)
+    try:
+        # A stale record: FleetView ended long ago and Windows gave its number to another program.
+        (tmp_path / "fleetview.pid").write_text(json.dumps({"pid": other.pid, "port": free_port()}), encoding="utf-8")
+        run(["--stop"], env)
+        assert alive(other.pid), "--stop killed a program that is not FleetView"
+        (tmp_path / "fleetview.pid").write_text(str(other.pid), encoding="utf-8")  # the old plain-number format
+        run(["--uninstall"], env)
+        assert alive(other.pid), "--uninstall killed a program that is not FleetView"
+    finally:
+        other.kill()
+
+
+def start_like_logon(tmp_path, port):
+    """Start FleetView the way the logon file does: node watcher.js, not through the installer."""
+    cfg = tmp_path / "config.json"
+    cfg.write_text(json.dumps({"port": port, "usage": {"enabled": False},
+                               "projects_dir": str(tmp_path / "home" / ".claude" / "projects")}), encoding="utf-8")
+    env = env_for(tmp_path)
+    env.pop("PORT", None)
+    node = shutil_which("node")
+    proc = subprocess.Popen([node, str(HERE / "watcher.js")], env=env, cwd=str(HERE), creationflags=NO_WINDOW,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+    assert wait_until(lambda: answers(port)), "FleetView did not start"
+    return proc, env
+
+
+def shutil_which(name):
+    import shutil
+    return shutil.which(name)
+
+
+@pytest.mark.skipif(not HAS_LIBS, reason="run npm install (or install.py) first")
+def test_stop_finds_a_copy_started_at_logon(tmp_path):
+    port = free_port()
+    proc, env = start_like_logon(tmp_path, port)
+    try:
+        r = run(["--stop"], env)
+        assert "Stopped FleetView" in r.stdout, r.stdout
+        assert wait_until(lambda: answers(port) is None, 10)
+    finally:
+        proc.kill()
+
+
+@pytest.mark.skipif(not HAS_LIBS, reason="run npm install (or install.py) first")
+def test_uninstall_stops_a_copy_started_at_logon(tmp_path):
+    port = free_port()
+    proc, env = start_like_logon(tmp_path, port)
+    try:
+        r = run(["--uninstall"], env)
+        assert "Stopped FleetView" in r.stdout, r.stdout
+        assert wait_until(lambda: answers(port) is None, 10)
+    finally:
+        proc.kill()
+
+
+def test_start_without_an_install_says_what_to_do(tmp_path):
+    r = run(["--start"], env_for(tmp_path))
+    assert r.returncode == 1
+    assert "python install.py" in r.stdout
+    assert not (tmp_path / "config.json").exists()
+
+
+@pytest.mark.skipif(not HAS_LIBS, reason="run npm install (or install.py) first")
+def test_start_only_starts_and_asks_nothing(tmp_path):
+    port = free_port()
+    env = env_for(tmp_path)
+    args = base_args(tmp_path)
+    args[args.index("--port") + 1] = str(port)
+    assert run(args + ["--no-launcher", "--no-ccusage", "--no-start"], env).returncode == 0
+    before = (tmp_path / "config.json").read_bytes()
+    r = subprocess.run([sys.executable, str(INSTALL), "--start"], env=env, capture_output=True, text=True,
+                       stdin=subprocess.DEVNULL, creationflags=NO_WINDOW, cwd=str(HERE))
+    try:
+        assert "Where is your" not in r.stdout, "--start asked the install questions again"
+        assert "started" in r.stdout.lower(), r.stdout
+        assert answers(port)
+        assert (tmp_path / "config.json").read_bytes() == before
+        r2 = run(["--start"], env)
+        assert "already running" in r2.stdout
+    finally:
+        run(["--stop"], env)
+
+
+@pytest.mark.skipif(not HAS_LIBS, reason="run npm install (or install.py) first")
+def test_changing_the_port_stops_the_old_copy(tmp_path):
+    p1, p2 = free_port(), free_port()
+    env = env_for(tmp_path)
+    args = base_args(tmp_path)
+    args[args.index("--port") + 1] = str(p1)
+    assert run(args + ["--no-launcher", "--no-ccusage", "--start"], env).returncode == 0
+    try:
+        assert answers(p1)
+        args[args.index("--port") + 1] = str(p2)
+        r = run(args + ["--no-launcher", "--no-ccusage", "--start"], env)
+        assert r.returncode == 0, r.stdout
+        assert wait_until(lambda: answers(p1) is None, 10), "the old copy on the old port is still running"
+        assert answers(p2)
+    finally:
+        run(["--stop"], env)
+        time.sleep(0.5)
+    assert answers(p1) is None and answers(p2) is None
+
+
+@pytest.mark.skipif(not HAS_LIBS, reason="run npm install (or install.py) first")
+def test_rerun_while_running_says_it_is_running(tmp_path):
+    port = free_port()
+    env = env_for(tmp_path)
+    args = base_args(tmp_path)
+    args[args.index("--port") + 1] = str(port)
+    assert run(args + ["--no-launcher", "--no-ccusage", "--start"], env).returncode == 0
+    try:
+        r = run(args + ["--no-launcher", "--no-ccusage"], env)
+        assert "already running" in r.stdout
+        assert "node watcher.js" not in r.stdout
+    finally:
+        run(["--stop"], env)

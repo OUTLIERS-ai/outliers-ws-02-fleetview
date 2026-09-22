@@ -82,3 +82,76 @@ test('a half-written last line is kept for the next read, not lost', () => {
   store.processFile(f);
   assert.equal(store.view(store.sessions.get('half')).tokensOut, 100);
 });
+
+// ---------- "waiting for you" must last until the member answers ----------
+function mkStore(nowMs) { return createStore({ now: () => nowMs }); }
+const T0 = Date.parse('2026-09-22T12:00:00Z');
+const at = (sec) => new Date(T0 - sec * 1000).toISOString();
+function reply(sid, sec, stop, content, id) {
+  return { type: 'assistant', sessionId: sid, cwd: 'C:\Demo\CRM', timestamp: at(sec),
+    message: { id: id || 'm-' + sec, model: 'claude-opus-5', role: 'assistant', stop_reason: stop, content, usage: { output_tokens: 10 } } };
+}
+const said = (t) => [{ type: 'text', text: t }];
+
+test('a finished reply 4 minutes old is still waiting for you', () => {
+  const store = mkStore(T0);
+  store.processEvent({ type: 'user', sessionId: 'w1', timestamp: at(300), message: { role: 'user', content: 'Which drafts?' } });
+  store.processEvent(reply('w1', 240, 'end_turn', said('Here are 3 drafts. Which one should I send?')));
+  assert.equal(store.view(store.sessions.get('w1')).status, 'waiting');
+});
+
+test('bookkeeping lines Claude Code writes after the reply do not end the wait', () => {
+  const store = mkStore(T0);
+  store.processEvent(reply('w2', 240, 'end_turn', said('Done. Want me to carry on?')));
+  store.processEvent({ type: 'system', subtype: 'turn_duration', sessionId: 'w2', timestamp: at(239) });
+  store.processEvent({ type: 'system', subtype: 'away_summary', sessionId: 'w2', timestamp: at(60) });
+  store.processEvent({ type: 'cost-state', sessionId: 'w2', timestamp: at(59) });
+  const v = store.view(store.sessions.get('w2'));
+  assert.equal(v.status, 'waiting');
+  assert.equal(v.waitingSince, at(240));
+});
+
+test('the member answering ends the wait', () => {
+  const store = mkStore(T0);
+  store.processEvent(reply('w3', 240, 'end_turn', said('Which one?')));
+  store.processEvent({ type: 'user', sessionId: 'w3', timestamp: at(5), message: { role: 'user', content: 'The second' } });
+  assert.equal(store.view(store.sessions.get('w3')).status, 'thinking');
+});
+
+test('a tool call with no result after 30 seconds may need approval: waiting, with the reason', () => {
+  const store = mkStore(T0);
+  store.processEvent(reply('w4', 45, 'tool_use', [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'npm test' } }]));
+  const v = store.view(store.sessions.get('w4'));
+  assert.equal(v.status, 'waiting');
+  assert.equal(v.waitReason, 'tool');
+  const fresh = mkStore(T0);
+  fresh.processEvent(reply('w5', 5, 'tool_use', [{ type: 'tool_use', id: 't2', name: 'Bash', input: {} }]));
+  assert.equal(fresh.view(fresh.sessions.get('w5')).status, 'thinking');
+});
+
+test('a wait older than the cap (8 hours by default) turns idle', () => {
+  const store = mkStore(T0);
+  store.processEvent(reply('w6', 9 * 3600, 'end_turn', said('All done.')));
+  assert.equal(store.view(store.sessions.get('w6')).status, 'idle');
+});
+
+test('the member pressing Esc (interrupted) is idle, not waiting', () => {
+  const store = mkStore(T0);
+  store.processEvent(reply('w7', 300, 'tool_use', [{ type: 'tool_use', id: 't3', name: 'Read', input: {} }]));
+  store.processEvent({ type: 'user', sessionId: 'w7', timestamp: at(290), message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user for tool use]' }] } });
+  assert.equal(store.view(store.sessions.get('w7')).status, 'idle');
+});
+
+test('a very large log file is read in pieces, not in 1 string', () => {
+  const store = createStore({ chunkBytes: 1024 });
+  const demo = makeDemoHome();
+  const f = path.join(demo.projects, 'big', 'big.jsonl');
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  const lines = [];
+  for (let i = 0; i < 200; i++) lines.push(JSON.stringify({ type: 'assistant', sessionId: 'big', timestamp: new Date().toISOString(),
+    message: { id: 'b' + i, model: 'claude-opus-5', stop_reason: 'end_turn', content: [], usage: { output_tokens: 1 } } }));
+  fs.writeFileSync(f, lines.join('\n') + '\n');
+  store.processFile(f);
+  assert.equal(store.view(store.sessions.get('big')).tokensOut, 200);
+  assert.equal(store.maxReadBytes <= 1024, true, 'read ' + store.maxReadBytes + ' bytes at once');
+});

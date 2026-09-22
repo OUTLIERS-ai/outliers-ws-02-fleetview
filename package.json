@@ -6,10 +6,10 @@
   "private": true,
   "scripts": {
     "start": "node watcher.js",
-    "demo": "node tools/make-demo.js",
+    "demo": "node tools/make-demo.js --serve",
     "test": "node --test"
   },
-  "engines": { "node": ">=18" },
+  "engines": { "node": ">=20.19" },
   "license": "MIT",
   "type": "commonjs",
   "dependencies": {
