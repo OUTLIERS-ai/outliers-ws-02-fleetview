@@ -78,8 +78,8 @@
     <span class="stat" title="Helper agents (subagents) working right now">helpers <b id="h-helpers">0</b></span>
     <span class="stat" id="s-tok">tokens <b id="h-tok">0</b></span>
     <span class="stat" id="s-cost">$ <b id="h-cost">0</b> <span id="h-unpriced" class="unpriced"></span></span>
-    <button class="gauge" id="s-window" title="Your current 5-hour usage window, Claude Code only (from ccusage). Click to set your own 5-hour token budget.">5h window <b id="h-window">…</b></button>
-    <button class="gauge" id="s-week" title="Your last 7 days, Claude Code only (from ccusage). Click to set your own weekly token budget.">7 days <b id="h-week">…</b></button>
+    <button class="gauge" id="s-window" title="Your current 5-hour usage window, Claude Code only (from ccusage). Click to set your own 5-hour token budget.">5-hour window: <b id="h-window">…</b></button>
+    <button class="gauge" id="s-week" title="Your last 7 days, Claude Code only (from ccusage). Click to set your own weekly token budget.">7 days: <b id="h-week">…</b></button>
     <span class="fresh" id="h-fresh"></span>
   </div>
   <div id="needs"><span class="lbl">Needs you:</span><span class="none">nothing is waiting for you</span></div>
@@ -94,11 +94,11 @@
   <span><span class="k" style="background:var(--wait)"></span>waiting for you</span>
   <span><span class="k" style="background:var(--idle)"></span>idle</span>
   <span><span class="ring"></span>ring = how full the context window is (<span style="color:var(--red)">red</span> over 85%)</span>
-  <span><b>O</b> Opus · <b>S</b> Sonnet · <b>F</b> Fable · <b>M</b> Mythos · <b>H</b> Haiku · <b>?</b> other model</span>
-  <span><b>1M</b> = 1-million-token window</span>
+  <span>Letter = Claude model: <b>O</b> Opus · <b>S</b> Sonnet · <b>F</b> Fable · <b>M</b> Mythos · <b>H</b> Haiku · <b>?</b> other</span>
+  <span><b>1M</b> = can keep 1 million tokens in view · M = million, B = billion</span>
   <span><span class="sat"></span>small dot = helper agent</span>
   <span id="f-cost"><b>$</b> = what these tokens would cost if you paid per token, not money taken from your subscription</span>
-  <a href="/cards.html">card view →</a>
+  <a href="/cards.html">open the card view</a>
 </div>
 <script>
 'use strict';
@@ -150,13 +150,13 @@ function modelName(m){
 function sig3(v){ return v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2); }
 function fmtTok(n){ n = n || 0;
   if (n >= 1e9) return sig3(n/1e9) + 'B'; if (n >= 1e6) return sig3(n/1e6) + 'M';
-  if (n >= 1e3) return sig3(n/1e3) + 'k'; return String(n); }
+  return Math.round(n).toLocaleString('en-GB'); }
 function money(v){ v = v || 0; return '$' + (v >= 100 ? v.toFixed(0) : v.toFixed(2)); }
 function fmtCost(s){ return (s.priceKnown || s.costUSD > 0) ? money(s.costUSD) : 'no price'; }
 function ago(iso){
   if (!iso) return '';
   const m = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
-  if (m < 1) return 'just now'; if (m < 60) return m + 'm'; const h = Math.floor(m/60); return h + 'h ' + (m % 60) + 'm';
+  if (m < 1) return 'just now'; if (m < 60) return m + ' min'; const h = Math.floor(m/60); return h + ' hr ' + (m % 60) + ' min';
 }
 function agoWords(iso){
   const m = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
@@ -345,7 +345,7 @@ function draw(){
     const hidden = lastData && lastData.hiddenByGroup ? lastData.hiddenByGroup[h.label] : 0;
     if (COLS){
       ctx.textAlign = 'left';
-      label(h.label + '  ' + h.count + (h.waiting ? ' · ' + h.waiting + ' waiting' : '') + (hidden ? ' · +' + hidden + ' idle not drawn' : ''), h.x + 16, h.y + 5, 'bold 14px Consolas, monospace', '#c9d4f0');
+      label(h.label + ': ' + h.count + (h.count === 1 ? ' session' : ' sessions') + (h.waiting ? ', ' + h.waiting + ' waiting' : '') + (hidden ? ', +' + hidden + ' idle not drawn' : ''), h.x + 16, h.y + 5, 'bold 14px Consolas, monospace', '#c9d4f0');
       ctx.textAlign = 'center';
     } else {
       label(h.label, h.x, h.y - 15, 'bold 14px Consolas, monospace', '#c9d4f0');
@@ -441,12 +441,13 @@ function collapseLog(list){
     if (last && last.type === l.type && last.msg === l.msg) last.n++; else out.push({ ...l, n:1 }); }
   return out;
 }
-const WINDOW_WHY = { 'model id':'the model name ends in [1m]', 'seen above 200k':'a reply used more than 200k', 'assumed':'assumed: no sign of a bigger window yet' };
+const WINDOW_WHY = { 'model id':'1,000,000 tokens, because the model name ends in [1m]', 'seen above 200k':'1,000,000 tokens, because a reply used more than 200,000', 'assumed':'taken as 200,000 tokens, because nothing yet shows it is the 1,000,000 window' };
+const LOG_WORDS = { user:'you typed', think:'Claude thinking', tool:'Claude used' };
 function renderPanel(s){
   const live = nodes.get(s.sessionId); if (live) s = live.data; selected = s;
   const p = document.getElementById('panel');
   if (!p.classList.contains('open')){ p.classList.add('open'); if (lastData) layout(lastData.sessions); }
-  const st = shown(s), win = (s.contextWindow || 200000) >= 1000000 ? '1M' : '200k';
+  const st = shown(s), win = (s.contextWindow || 200000) >= 1000000 ? '1,000,000 tokens' : '200,000 tokens';
   const statusHtml = '<div class="status" style="border-left:4px solid ' + (C[st] || C.idle) + '"><b>' + esc(WORDS[st] || st) + '</b>' +
     (s.status === 'waiting' ? '<br>' + esc(waitLine(s)) : '') +
     (st === 'waiting' ? '<br><button class="done" id="mark-done">Mark as done (stop showing it as waiting)</button>' : '') +
@@ -456,7 +457,7 @@ function renderPanel(s){
     '<button class="close" id="close-panel">close (Esc)</button>' +
     '<h2>' + esc(nameOf(s)) + '</h2><div class="meta">' + esc(s.group) + ' · ' + esc(s.cwd) + '</div>' + statusHtml +
     '<div class="row"><span>model</span><span>' + esc(modelName(s.model)) + '</span></div>' +
-    (s.gitBranch ? '<div class="row"><span>git branch</span><span>' + esc(s.gitBranch) + '</span></div>' : '') +
+    (s.gitBranch ? '<div class="row"><span>git branch (version of the code)</span><span>' + esc(s.gitBranch) + '</span></div>' : '') +
     '<div class="row"><span>$ if paid per token</span><span>' + (priced ? esc(money(s.costUSD)) : 'no price') + '</span></div>' +
     (s.unpricedTokens ? '<div class="row"><span>tokens with no price</span><span>' + fmtTok(s.unpricedTokens) + '</span></div><div class="x">' + esc((s.unpricedModels || []).join(', ')) + ' has no row in lib/prices.json, so these tokens are left out of the $ figure rather than guessed.</div>' : '') +
     '<div class="row"><span>turns (replies)</span><span>' + (s.turnCount || 0) + '</span></div>' +
@@ -467,10 +468,10 @@ function renderPanel(s){
     '<div class="row"><span>context window</span><span>' + (s.contextPct || 0) + '% of ' + win + '</span></div>' +
     '<div class="x">Window size: ' + esc(WINDOW_WHY[s.contextWindowSource] || s.contextWindowSource || '') + '</div>' +
     '<div class="row"><span>helpers (last 30 min)</span><span>' + (s.subagents || []).length + '</span></div>' +
-    (s.subagents || []).map(x => '<div class="row"><span style="color:' + (x.status === 'thinking' ? C.thinking : '#9aa6c4') + '">↳ ' + esc(((x.agentType ? x.agentType + ': ' : '') + (x.task || x.agentId)).slice(0, 48)) + '</span><span>' + fmtTok(x.tokensOut) + ' out</span></div>').join('') +
+    (s.subagents || []).map(x => '<div class="row"><span style="color:' + (x.status === 'thinking' ? C.thinking : '#9aa6c4') + '">↳ ' + esc(((x.agentType ? x.agentType + ': ' : '') + (x.task || x.agentId)).slice(0, 48)) + '</span><span>' + fmtTok(x.tokensOut) + ' written</span></div>').join('') +
     '<div class="files">' + (s.activeFiles || []).map(f => '<span>' + esc(f) + '</span>').join('') + '</div>' +
     '<div class="log">' + collapseLog((s.recentLog || []).slice().reverse()).map(l =>
-      '<div class="t-' + esc(l.type) + '">' + new Date(l.time).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) + ' <b>' + esc(l.type) + '</b> ' + esc((l.msg || '').slice(0, 110)) + (l.n > 1 ? ' <span class="x">×' + l.n + '</span>' : '') + '</div>').join('') + '</div>' +
+      '<div class="t-' + esc(l.type) + '">' + new Date(l.time).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) + ' <b>' + esc(LOG_WORDS[l.type] || l.type) + '</b> ' + esc((l.msg || '').slice(0, 110)) + (l.n > 1 ? ' <span class="x">×' + l.n + '</span>' : '') + '</div>').join('') + '</div>' +
     '<div class="note">The $ figure includes this session\'s helper agents.</div>';
   document.getElementById('close-panel').onclick = closePanel;
   const md = document.getElementById('mark-done'); if (md) md.onclick = () => { doneMap[s.sessionId] = s.waitingSince; saveDone(doneMap); poll(); };
@@ -515,26 +516,26 @@ async function pollUsage(){
     if (u.block){
       const b = u.block, used = b.totalTokens || 0;
       const proj = (b.projection && b.projection.totalTokens) || 0, mins = b.projection && b.projection.remainingMinutes;
-      wel.textContent = fmtTok(used) + (windowBudget ? ' / ' + fmtTok(windowBudget) : '') + ' used' + (proj ? ' → ' + fmtTok(proj) + ' projected' : '') + (mins != null ? ' · ' + mins + 'm left' : '');
+      wel.textContent = fmtTok(used) + ' used' + (windowBudget ? ' of ' + fmtTok(windowBudget) + ' budget' : '') + (proj ? ', ' + fmtTok(proj) + ' projected' : '') + (mins != null ? ', ' + mins + ' min left' : '');
       win.style.color = budgetColour(proj || used, windowBudget);
       const tc = b.tokenCounts || {};
       win.title = 'Current 5-hour window, Claude Code only' + demo + ': ' + new Date(b.startTime).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) + ' to ' + new Date(b.endTime).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) +
         '\noutput ' + fmtTok(tc.outputTokens) + ' · input ' + fmtTok(tc.inputTokens) + ' · re-read context ' + fmtTok(tc.cacheReadInputTokens) +
         '\n$' + (b.costUSD || 0).toFixed(2) + ' if paid per token' +
         (windowBudget ? '\nYour budget: ' + fmtTok(windowBudget) + '. The colour follows the projected total. Click to change.' : '\nClick to set a 5-hour budget in tokens.');
-      if (windowBudget && proj > windowBudget) notify('win-' + b.id, '5-hour window projected over budget', fmtTok(proj) + ' projected vs ' + fmtTok(windowBudget) + ' budget (' + mins + 'm left)');
+      if (windowBudget && proj > windowBudget) notify('win-' + b.id, '5-hour window projected over budget', fmtTok(proj) + ' projected vs ' + fmtTok(windowBudget) + ' budget (' + mins + ' min left)');
     } else if (u.enabled === false){ wel.textContent = 'off'; win.title = u.error || ''; }
     else if (u.error){ wel.textContent = 'not available'; win.title = u.error + '\nHover here any time to see why. See "When it goes wrong" in the guide.'; }
     else { wel.textContent = u.fetchedAt ? 'no window open' : 'first check (up to 1 minute)…'; }
     if (u.week){
       const wt = u.week.tokens || 0;
-      wkE.textContent = fmtTok(wt) + (weekBudget ? ' / ' + fmtTok(weekBudget) : '');
+      wkE.textContent = fmtTok(wt) + (weekBudget ? ' of ' + fmtTok(weekBudget) + ' budget' : '');
       wkS.style.color = budgetColour(wt, weekBudget);
       wkS.title = 'Last ' + (u.week.days || 7) + ' days with use, Claude Code only' + demo + ': ' + fmtTok(wt) + ' tokens, $' + (u.week.cost || 0).toFixed(2) + ' if paid per token' +
         (weekBudget ? '\nYour budget: ' + fmtTok(weekBudget) + '. Click to change.' : '\nClick to set a 7-day budget in tokens.');
       if (weekBudget && wt >= 0.9 * weekBudget) notify('week-' + new Date().toISOString().slice(0,10), '7-day usage near budget', fmtTok(wt) + ' of ' + fmtTok(weekBudget) + ' used in 7 days');
     } else { wkE.textContent = u.enabled === false ? 'off' : (u.weekError ? 'not available' : '…'); if (u.weekError) wkS.title = u.weekError; }
-    if (u.demo){ wel.textContent += ' (demo)'; wkE.textContent += ' (demo)'; }
+    if (u.demo){ wel.textContent += ' (made-up)'; wkE.textContent += ' (made-up)'; }
   } catch(e) {}
 }
 poll(); setInterval(poll, 2000);

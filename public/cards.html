@@ -82,7 +82,7 @@
     function loadDone(){ try { return JSON.parse(localStorage.getItem('fv-done') || '{}'); } catch(x){ return {}; } }
     function shown(s, done){ return (s.status === 'waiting' && done[s.sessionId] && done[s.sessionId] === s.waitingSince) ? 'done' : s.status; }
     function sig3(v){ return v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2); }
-    function fmtTok(n){ n = n || 0; if (n >= 1e9) return sig3(n/1e9)+'B'; if (n >= 1e6) return sig3(n/1e6)+'M'; if (n >= 1e3) return sig3(n/1e3)+'k'; return String(n); }
+    function fmtTok(n){ n = n || 0; if (n >= 1e9) return sig3(n/1e9)+'B'; if (n >= 1e6) return sig3(n/1e6)+'M'; return Math.round(n).toLocaleString('en-GB'); }
     function money(v){ v = v || 0; return '$' + (v >= 100 ? v.toFixed(0) : v.toFixed(2)); }
     function cost(s){ return (s.priceKnown || s.costUSD > 0) ? money(s.costUSD) : 'no price'; }
     function agoWords(iso){ if (!iso) return '-'; const m = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime())/60000));
@@ -111,7 +111,7 @@
               (s.group || 'Other') + ' · ',
               s.cwd ? e('span', { className: 'open' + (missing ? ' missing' : ''), title: missing ? 'Folder not found: ' + s.cwd : 'Open this folder in your file manager: ' + s.cwd,
                 onClick: missing ? undefined : openFolder }, s.label || 'folder') : null,
-              (s.gitBranch ? ' · ' + s.gitBranch : '') + perm)
+              (s.gitBranch ? ' · git branch ' + s.gitBranch : '') + perm)
           ),
           e('span', { className: 'pill ' + st }, WORDS[st] || st)
         ),
@@ -126,13 +126,13 @@
           e('div', { className: 'meta-item' }, e('span', { className: 'meta-key' }, 'Turns'), e('span', { className: 'meta-val' }, s.turnCount || 0)),
           e('div', { className: 'meta-item' }, e('span', { className: 'meta-key' }, 'Last activity'), e('span', { className: 'meta-val' }, hhmm(s.lastEventAt)))
         ),
-        e('div', { className: 'bar-label' }, e('span', null, 'Context window (' + ((s.contextWindow || 200000) >= 1000000 ? '1M' : '200k') + ')'), e('span', null, pct + '% full')),
+        e('div', { className: 'bar-label' }, e('span', null, 'Context window (' + ((s.contextWindow || 200000) >= 1000000 ? '1,000,000' : '200,000') + ' tokens)'), e('span', null, pct + '% full')),
         e('div', { className: 'bar' }, e('div', { className: 'bar-fill', style: { width: pct + '%', background: pct > 85 ? 'var(--red)' : 'var(--ring)' } })),
         (s.activeFiles || []).length ? e('div', { className: 'files' }, s.activeFiles.map((f, i) => e('span', { key: i, className: 'file' }, f))) : null,
         (s.subagents || []).length ? e('div', { className: 'helpers' }, 'Helper agents (' + s.subagents.length + ')',
           s.subagents.map((x, i) => e('div', { key: i, className: 'helper' },
             e('span', { className: 'dot', style: { background: x.status === 'thinking' ? 'var(--work)' : 'var(--idle)' } }),
-            (x.agentType ? x.agentType + ': ' : '') + (x.task || x.agentId), ' · ' + fmtTok(x.tokensOut) + ' out'))) : null,
+            (x.agentType ? x.agentType + ': ' : '') + (x.task || x.agentId), ' · ' + fmtTok(x.tokensOut) + ' tokens written'))) : null,
         e('button', { className: 'log-toggle', onClick: () => setOpen(!open) }, open ? '− hide last steps' : '+ show last steps (' + (s.recentLog || []).length + ')'),
         open ? e('div', { className: 'log' }, (s.recentLog || []).slice().reverse().map((l, i) =>
           e('div', { key: i, className: 'log-entry' }, e('span', { className: 'log-time' }, hhmm(l.time)), e('span', { className: 'log-type ' + l.type }, l.type), e('span', null, l.msg)))) : null
@@ -165,7 +165,7 @@
               data && data.hidden ? e('span', null, ' (' + data.hidden + ' idle not shown · ', e('a', { href: '?all=1' }, 'show all'), ')') : null),
             e('span', null, e('span', { className: 'stat-label' }, 'tokens'), e('span', { className: 'stat-value' }, fmtTok(t ? t.tokens : 0))),
             e('span', null, e('span', { className: 'stat-label' }, '$'), e('span', { className: 'stat-value' }, money(t ? t.costUSD : 0))),
-            e('a', { href: '/graph.html' + (showAll ? '?all=1' : '') }, 'graph view →')
+            e('a', { href: '/graph.html' + (showAll ? '?all=1' : '') }, 'open the graph view')
           )
         ),
         e('div', { className: 'note' }, '$ = what these tokens would cost if you paid per token, not money taken from your subscription. Same sessions and totals as the graph page. Waiting sessions first.'),

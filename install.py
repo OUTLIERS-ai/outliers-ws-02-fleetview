@@ -10,7 +10,7 @@ What it does, in order:
   1. Checks Node.js 20.19 or newer and npm are installed (the file-watching
      library, chokidar 5, needs 20.19). If not, it says how to get them and
      stops without changing anything.
-  2. Runs `npm install` in this folder (downloads 2 small libraries).
+  2. Runs `npm install` in this folder (downloads 2 small code packages).
   3. Asks where your second brain vault, your CRM vault and any other project
      folders are, and which port to use (3010 unless you say otherwise).
   4. Writes config.json. An existing config.json is backed up first.
@@ -378,7 +378,7 @@ def start_only():
         how_to_get_node()
         return 1
     if not (HERE / "node_modules" / "express").is_dir():
-        say("  The libraries are missing. Run  python install.py  first.")
+        say("  The code packages FleetView needs are missing. Run  python install.py  first.")
         return 1
     port = config_port()
     live = running()
@@ -445,7 +445,7 @@ def main(argv=None):
 
     interactive = not a.yes
     say("FleetView installer")
-    say("  FleetView shows every Claude Code session on this computer on one page.")
+    say("  FleetView shows every Claude Code session on this computer on 1 page.")
     say("  It only reads the log files Claude Code already writes. It changes nothing in Claude Code.")
 
     # 1
@@ -466,16 +466,16 @@ def main(argv=None):
     # 2
     if not a.skip_npm:
         if (HERE / "node_modules" / "express").is_dir() and (HERE / "node_modules" / "chokidar").is_dir():
-            say("  Libraries already installed.")
+            say("  Code packages already downloaded.")
         else:
-            say("  Installing 2 libraries with npm (needs internet, about 20 seconds)...")
+            say("  Downloading 2 code packages with npm (needs internet, about 20 seconds)...")
             r = run([npm, "install", "--no-audit", "--no-fund"], cwd=str(HERE))
             if r.returncode != 0:
                 say("  npm install failed:")
                 say("  " + (r.stderr or r.stdout).strip()[-800:])
                 say("  Check your internet connection and run  python install.py  again. config.json was not changed.")
                 return 1
-            say("  Libraries installed.")
+            say("  Code packages downloaded.")
 
     # 3
     old = load_existing()
@@ -510,7 +510,7 @@ def main(argv=None):
         if extra:
             say("  Keeping your other folders from last time: " + ", ".join(n for n, _ in extra))
         say("")
-        say("  Any other project folders? For example your content engine. One at a time; Enter on its own to finish.")
+        say("  Any other project folders? For example the folder where you write your posts. One at a time; Enter on its own to finish.")
         while True:
             p = ask("Folder path (Enter to finish):", None, True)
             if not p:

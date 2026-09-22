@@ -1,7 +1,7 @@
 # FleetView: every Claude Code session on a single screen
 
 ```
-git clone https://github.com/OUTLIERS-ai/outliers-ws-02-fleetview && cd outliers-ws-02-fleetview && python install.py
+git clone https://github.com/OUTLIERS-ai/outliers-ws-02-fleetview; cd outliers-ws-02-fleetview; python install.py
 ```
 
 Say yes when it offers to start FleetView, then open **http://localhost:3010/graph.html**. Later, start it with `python install.py --start` and stop it with `python install.py --stop`.
@@ -12,7 +12,7 @@ Want to see it before your own sessions exist? `npm install` then `npm run demo`
 
 ## What it shows
 
-- **Who needs you.** "3 need you" at the top, and a **Needs you** strip naming every session whose last word is Claude's finished answer, longest wait first. A session stays amber (waiting) until you answer, up to `waiting_hours` (8). Finished with a session? Open it and press **Mark as done**.
+- **Who needs you.** "3 need you" at the top, and a **Needs you** strip naming every session whose last word is Claude's finished answer, longest wait first. A session stays amber (waiting) until you answer, up to `waiting_hours` (8 hours; after that it shows as idle). Finished with a session? Open it and press **Mark as done**.
 - A dot (a hub) for each of your folders: your second brain, your CRM, your content engine, anything else you name. Sessions from any other folder hang off a hub called **Other**. A folder appears once it has a session today.
 - A circle for each Claude Code session today. The circle's fill is its status: green working, amber waiting for you, blue-grey idle. A session that asked to run a tool and got nothing back for 30 seconds shows as waiting with "may need approval".
 - The letter inside is the model: **O** Opus, **S** Sonnet, **F** Fable, **M** Mythos, **H** Haiku, **?** any other model.
@@ -41,7 +41,7 @@ It adds no hooks, changes no settings and starts no agents. It only reads the lo
 
 | Command | What it does |
 |---|---|
-| `python install.py` | Checks Node.js, installs 2 libraries, asks for your folders, writes `config.json`, offers a hidden logon start, starts FleetView. Changed answers restart it on the new settings |
+| `python install.py` | Checks Node.js, downloads 2 code packages, asks for your folders, writes `config.json`, offers a hidden logon start, starts FleetView. Changed answers restart it on the new settings |
 | `python install.py --start` | Only starts FleetView, with your saved answers. No questions |
 | `python install.py --stop` | Stops FleetView however it was started (installer, logon or by hand). Checks it really is FleetView before stopping it |
 | `python install.py --uninstall` | Stops it and removes the logon file it made. Leaves everything else |
@@ -59,7 +59,7 @@ It adds no hooks, changes no settings and starts no agents. It only reads the lo
 | `host` | `127.0.0.1`: only this computer. Leave it |
 | `folders` | Your folders: `[{ "name": "CRM", "path": "..." }]`. The most specific match wins |
 | `idle_per_folder` | Idle sessions drawn per folder (3). Totals always count every session |
-| `waiting_hours` | How long an unanswered session stays amber (8) |
+| `waiting_hours` | How many hours an unanswered session stays amber (8). After that it shows as idle (blue-grey) and leaves the Needs you strip |
 | `hide_paths` | `true` hides folder paths, file names and the text of recent steps, for screen-sharing |
 | `usage.enabled` | `false` switches the 5-hour and 7-day panel off |
 | `usage.package` | The ccusage version run (`ccusage@20.0.24`) |
