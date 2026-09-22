@@ -16,7 +16,8 @@
     }
   ],
   "idle_per_folder": 3,
-  "waiting_hours": 8,
+  "waiting_hours": 1,
+  "fresh_minutes": 30,
   "hide_paths": false,
   "usage": {
     "enabled": true,

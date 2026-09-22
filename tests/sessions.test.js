@@ -93,7 +93,7 @@ function reply(sid, sec, stop, content, id) {
 }
 const said = (t) => [{ type: 'text', text: t }];
 
-test('a finished reply 4 minutes old is still waiting for you', () => {
+test('a question asked 4 minutes ago is still waiting for you', () => {
   const store = mkStore(T0);
   store.processEvent({ type: 'user', sessionId: 'w1', timestamp: at(300), message: { role: 'user', content: 'Which drafts?' } });
   store.processEvent(reply('w1', 240, 'end_turn', said('Here are 3 drafts. Which one should I send?')));
@@ -118,18 +118,20 @@ test('the member answering ends the wait', () => {
   assert.equal(store.view(store.sessions.get('w3')).status, 'thinking');
 });
 
-test('a tool call with no result after 30 seconds may need approval: waiting, with the reason', () => {
+test('a tool call with no result after 30 seconds is its own state, not "waiting for you"', () => {
+  // Changed 2026-09-23: a 45-second npm install is not the member being asked
+  // anything, so it no longer counts in "N need you". See tests/status.test.js.
   const store = mkStore(T0);
   store.processEvent(reply('w4', 45, 'tool_use', [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'npm test' } }]));
   const v = store.view(store.sessions.get('w4'));
-  assert.equal(v.status, 'waiting');
+  assert.equal(v.status, 'approval');
   assert.equal(v.waitReason, 'tool');
   const fresh = mkStore(T0);
   fresh.processEvent(reply('w5', 5, 'tool_use', [{ type: 'tool_use', id: 't2', name: 'Bash', input: {} }]));
   assert.equal(fresh.view(fresh.sessions.get('w5')).status, 'thinking');
 });
 
-test('a wait older than the cap (8 hours by default) turns idle', () => {
+test('a wait older than the cap turns idle', () => {
   const store = mkStore(T0);
   store.processEvent(reply('w6', 9 * 3600, 'end_turn', said('All done.')));
   assert.equal(store.view(store.sessions.get('w6')).status, 'idle');
@@ -140,6 +142,24 @@ test('the member pressing Esc (interrupted) is idle, not waiting', () => {
   store.processEvent(reply('w7', 300, 'tool_use', [{ type: 'tool_use', id: 't3', name: 'Read', input: {} }]));
   store.processEvent({ type: 'user', sessionId: 'w7', timestamp: at(290), message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user for tool use]' }] } });
   assert.equal(store.view(store.sessions.get('w7')).status, 'idle');
+});
+
+test('reading a big log hands control back between pieces, so the page keeps answering', async () => {
+  const demo = makeDemoHome();
+  const f = path.join(demo.projects, 'chunky', 'chunky.jsonl');
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  const lines = [];
+  for (let i = 0; i < 20000; i++) lines.push(JSON.stringify({ type: 'assistant', sessionId: 'chunky', timestamp: new Date().toISOString(),
+    message: { id: 'c' + i, model: 'claude-opus-5', stop_reason: 'end_turn', content: [{ type: 'text', text: 'x'.repeat(200) }], usage: { output_tokens: 1 } } }));
+  fs.writeFileSync(f, lines.join('\n') + '\n');
+  const store = createStore({ chunkBytes: 256 * 1024 });
+  let last = Date.now(), worstGap = 0, ticks = 0;
+  const timer = setInterval(() => { const t = Date.now(); worstGap = Math.max(worstGap, t - last); last = t; ticks++; }, 5);
+  await new Promise((resolve) => store.processFileAsync(f, resolve));
+  clearInterval(timer);
+  assert.equal(store.view(store.sessions.get('chunky')).tokensOut, 20000, 'the whole file was read');
+  assert.ok(ticks > 3, 'other work ran while the log was being read (' + ticks + ' turns)');
+  assert.ok(worstGap < 400, 'the longest the thread was kept was ' + worstGap + ' ms; it must stay short');
 });
 
 test('a very large log file is read in pieces, not in 1 string', () => {

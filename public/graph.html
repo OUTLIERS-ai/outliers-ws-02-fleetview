@@ -7,7 +7,8 @@
 <style>
   :root {
     --bg:#0a0c14; --bar:#0f1320; --line:#232b44; --text:#dfe6f5; --soft:#b4bfdb; --dim:#9aa6c4;
-    --work:#22dd88; --wait:#ffb640; --idle:#6d7ea8; --done:#56627f; --red:#ff6b7a; --link:#8ab8ff;
+    --work:#22dd88; --wait:#ffb640; --wait-old:#b8842f; --appr:#b98cff;
+    --idle:#6d7ea8; --done:#8a93b0; --red:#ff6b7a; --link:#8ab8ff;
   }
   html, body { margin:0; padding:0; height:100%; background:var(--bg); overflow:hidden;
     font-family:"Cascadia Code","Consolas","SF Mono",Menlo,monospace; color:var(--text); }
@@ -25,13 +26,22 @@
   #hud button.gauge b { color:inherit; }
   #hud a { color:var(--link); text-decoration:none; }
   #hud .unpriced { color:var(--dim); border-bottom:1px dotted var(--dim); cursor:help; }
-  #needs { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:7px 16px 9px; border-top:1px solid var(--line); font-size:13px; }
+  #needs { display:flex; align-items:center; gap:7px; flex-wrap:wrap; padding:7px 16px 9px; border-top:1px solid var(--line); font-size:13px;
+    overflow:hidden; }
   #needs .lbl { color:var(--wait); font-weight:bold; }
   #needs .none { color:var(--dim); }
   #needs button { font:inherit; font-size:13px; cursor:pointer; background:rgba(255,182,64,.12); color:#ffd699;
     border:1px solid rgba(255,182,64,.45); border-radius:14px; padding:3px 11px; }
+  #needs button.older { background:rgba(184,132,47,.10); color:#e2c48d; border-color:rgba(184,132,47,.45); }
   #needs button .age { color:#fff; font-weight:bold; }
   #needs button.more { background:#161c2e; color:var(--link); border-color:var(--line); }
+  /* FleetView has stopped: nothing in the top bar may keep claiming to be live */
+  #top.stopped #needs-count { background:#2a3350; color:var(--soft); }
+  #top.stopped #needs .lbl { color:var(--soft); }
+  #top.stopped #needs button { background:#161c2e; color:var(--soft); border-color:var(--line); }
+  #configbad { display:none; padding:9px 16px; background:#5a3a14; color:#fff; font-size:13.5px; border-top:1px solid #ffb640; }
+  #configbad b { color:#ffe0ad; }
+  #configbad code { background:#0006; padding:1px 6px; border-radius:4px; }
   #stopped { display:none; padding:9px 16px; background:#5a1420; color:#fff; font-size:14px; border-top:1px solid #ff6b7a; }
   #stopped b { color:#ffd0d6; }
   #stopped code { background:#000a; padding:1px 6px; border-radius:4px; }
@@ -72,8 +82,9 @@
 <div id="top">
   <div id="hud">
     <span class="title"><span class="live" id="live"></span>FLEETVIEW</span>
-    <span id="needs-count" class="zero" title="Sessions whose last word is Claude's: it has answered and is waiting for you">0 need you</span>
+    <span id="needs-count" class="zero" title="Sessions where Claude asked you something and nobody has answered">0 need you</span>
     <span class="stat">working <b id="h-working">0</b></span>
+    <span class="stat" id="s-appr" title="Claude asked to run a tool and nothing has come back. It may be waiting for your yes, or a long command is running. These are not counted in 'need you'.">may need approval <b id="h-appr">0</b></span>
     <span class="stat" id="s-sessions">sessions today <b id="h-sessions">0</b> <span id="h-hidden"></span></span>
     <span class="stat" title="Helper agents (subagents) working right now">helpers <b id="h-helpers">0</b></span>
     <span class="stat" id="s-tok">tokens <b id="h-tok">0</b></span>
@@ -83,6 +94,7 @@
     <span class="fresh" id="h-fresh"></span>
   </div>
   <div id="needs"><span class="lbl">Needs you:</span><span class="none">nothing is waiting for you</span></div>
+  <div id="configbad"></div>
   <div id="stopped"></div>
 </div>
 <canvas id="cv"></canvas>
@@ -91,21 +103,31 @@
 <div id="panel"></div>
 <div id="foot">
   <span><span class="k" style="background:var(--work)"></span>working</span>
-  <span><span class="k" style="background:var(--wait)"></span>waiting for you</span>
-  <span><span class="k" style="background:var(--idle)"></span>idle</span>
-  <span><span class="ring"></span>ring = how full the context window is (<span style="color:var(--red)">red</span> over 85%)</span>
+  <span><span class="k" style="background:var(--wait)"></span>asked you something</span>
+  <span><span class="k" style="background:var(--wait-old)"></span>asked you over 30 minutes ago</span>
+  <span><span class="k" style="background:var(--appr)"></span>may need approval (a tool is waiting)</span>
+  <span><span class="k" style="background:var(--idle)"></span>idle, or answered and asked nothing</span>
+  <span><span class="k" style="background:var(--done)"></span>✓ marked as done by you</span>
+  <span><span class="ring"></span>ring = how full the context window is · <span style="color:var(--red)">!</span> over 85% full</span>
   <span>Letter = Claude model: <b>O</b> Opus · <b>S</b> Sonnet · <b>F</b> Fable · <b>M</b> Mythos · <b>H</b> Haiku · <b>?</b> other</span>
   <span><b>1M</b> = can keep 1 million tokens in view · M = million, B = billion</span>
-  <span><span class="sat"></span>small dot = helper agent</span>
+  <span><span class="sat"></span>small dot = helper agent (hover it for its job)</span>
   <span id="f-cost"><b>$</b> = what these tokens would cost if you paid per token, not money taken from your subscription</span>
   <a href="/cards.html">open the card view</a>
 </div>
 <script>
 'use strict';
-const C = { thinking:'#22dd88', waiting:'#ffb640', idle:'#6d7ea8', done:'#56627f', stale:'#3d4660',
+// done is 6.2:1 against the background (it was 3.21:1) and carries a white tick,
+// because 2 greys 1 step apart are not a difference anyone can see.
+const C = { thinking:'#22dd88', waiting:'#ffb640', waitingOld:'#b8842f', approval:'#b98cff',
+  finished:'#6d7ea8', idle:'#6d7ea8', done:'#8a93b0', stale:'#3d4660',
   track:'#2a3350', ringFill:'#c8d2e8', red:'#ff6b7a', hub:'#3a4568', edge:'rgba(110,140,210,0.28)', subEdge:'rgba(120,220,170,0.35)',
   title:'#e6ecf8', sub:'#b4bfdb', letter:'#0a0c14' };
-const WORDS = { thinking:'Working', waiting:'Waiting for you', idle:'Idle', done:'Marked as done' };
+const WORDS = { thinking:'Working', waiting:'Asked you something', approval:'May need your approval',
+  finished:'Answered, asked nothing', idle:'Idle', done:'Marked as done' };
+const OVER_FULL = 0.85;              // above this the context window gets a red ! beside the circle, never a red ring
+const NEEDS_MAX_SHARE = 0.15;        // the Needs you strip may never take more than 15% of the screen height
+const COLS_PER_FOLDER = 4;           // above this many sessions in 1 folder, the ring layout writes labels on top of each other
 const showAll = new URLSearchParams(location.search).get('all') === '1';
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -134,9 +156,16 @@ function loadDone(){ try { return JSON.parse(localStorage.getItem('fv-done') || 
 function saveDone(d){ try { localStorage.setItem('fv-done', JSON.stringify(d)); } catch(e){} }
 let doneMap = loadDone();
 function shown(s){ // the status to draw: a waiting session the member marked as done is drawn as done
-  if (s.status === 'waiting' && doneMap[s.sessionId] && doneMap[s.sessionId] === s.waitingSince) return 'done';
+  if ((s.status === 'waiting' || s.status === 'approval') && doneMap[s.sessionId] && doneMap[s.sessionId] === s.waitingSince) return 'done';
   return s.status;
 }
+// The colour of a circle: waiting splits by age, so a 5-minute question and a
+// 45-minute one do not shout equally loudly.
+function colourOf(s, st){
+  if (st === 'waiting' && s.waitBand === 'older') return C.waitingOld;
+  return C[st] || C.idle;
+}
+function newestFirst(a, b){ return (b.waitingSince || '').localeCompare(a.waitingSince || ''); }
 
 // ---------- words and numbers ----------
 function modelLetter(m){ const x = (m||'').toLowerCase().match(/(fable|mythos|opus|sonnet|haiku)/); return x ? x[1][0].toUpperCase() : '?'; }
@@ -158,22 +187,37 @@ function ago(iso){
   const m = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
   if (m < 1) return 'just now'; if (m < 60) return m + ' min'; const h = Math.floor(m/60); return h + ' hr ' + (m % 60) + ' min';
 }
+function sinceWords(iso){ const a = ago(iso); return a === 'just now' ? 'just now' : a + ' ago'; }
 function agoWords(iso){
   const m = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
   if (m < 1) return 'less than a minute ago'; if (m === 1) return '1 minute ago'; if (m < 60) return m + ' minutes ago';
   const h = Math.floor(m/60); return h + (h === 1 ? ' hour ' : ' hours ') + (m % 60) + ' minutes ago';
 }
 function waitLine(s){
-  if (s.waitReason === 'tool') return 'Asked to run a tool ' + agoWords(s.waitingSince) + ' and nothing has come back: it may need your approval, or a long step is running.';
-  return 'Answered ' + agoWords(s.waitingSince) + ' and has been waiting for you since.';
+  if (s.status === 'approval') return 'Asked to run a tool ' + agoWords(s.waitingSince) + ' and nothing has come back: it may be waiting for your yes, or a long command is running.';
+  if (s.status === 'finished') return 'Answered ' + agoWords(s.finishedSince) + ' and asked nothing, so there is nothing for you to do.';
+  return 'Claude asked ' + agoWords(s.waitingSince) + ' and nobody has answered.';
 }
 function esc(x){ const d = document.createElement('div'); d.textContent = x == null ? '' : String(x); return d.innerHTML; }
 function nameOf(s){ return s.title || ((s.gitBranch && s.gitBranch !== 'HEAD') ? s.gitBranch : (s.label || s.sessionId.slice(0,8))); }
 
-fetch('/api/meta').then(r => r.json()).then(m => {
-  meta = m;
-  document.getElementById('f-cost').innerHTML = '<b>$</b> = what these tokens would cost if you paid per token, not money taken from your subscription (prices checked ' + esc(m.pricesChecked) + ')';
-}).catch(() => {});
+function showConfigError(m){
+  const el = document.getElementById('configbad');
+  const e = m && m.configError;
+  el.style.display = e ? 'block' : 'none';
+  el.innerHTML = e ? '<b>Your settings file could not be read.</b> ' + esc(e.message) +
+    ' Until it is fixed FleetView is using the default settings: none of your folder names, and the port it was started on. ' +
+    'The file is <code>' + esc(e.file || 'config.json') + '</code>.' : '';
+  measureBars();
+}
+function pollMeta(){
+  fetch('/api/meta', { cache:'no-store' }).then(r => r.json()).then(m => {
+    meta = m;
+    document.getElementById('f-cost').innerHTML = '<b>$</b> = what these tokens would cost if you paid per token, not money taken from your subscription (prices checked ' + esc(m.pricesChecked) + ')';
+    showConfigError(m);
+  }).catch(() => {});
+}
+pollMeta(); setInterval(pollMeta, 30000);
 
 // ---------- data ----------
 async function poll(){
@@ -192,8 +236,20 @@ async function poll(){
   }
   document.getElementById('h-fresh').textContent = lastOkAt ? 'updated ' + Math.round((Date.now() - lastOkAt) / 1000) + 's ago' : '';
 }
+// When FleetView dies the whole screen has to agree. The circles used to go
+// grey while the pill above them still shouted "6 need you" in full amber.
+function setStoppedWords(on){
+  const when = lastOkAt ? new Date(lastOkAt).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) : '';
+  document.getElementById('top').classList.toggle('stopped', on);
+  const nc = document.getElementById('needs-count');
+  if (on && lastData){
+    const n = lastData.sessions.filter(s => shown(s) === 'waiting').length;
+    nc.textContent = n + (n === 1 ? ' needed you at ' : ' needed you at ') + when;
+    nc.title = 'FleetView stopped. This is how it stood at ' + when + '.';
+  }
+}
 function setStopped(on){
-  if (on === stopped) return;
+  if (on === stopped) { setStoppedWords(on); return; }
   stopped = on;
   const el = document.getElementById('stopped');
   el.style.display = on ? 'block' : 'none';
@@ -201,6 +257,7 @@ function setStopped(on){
     (lastOkAt ? ' (last update ' + new Date(lastOkAt).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) + ')' : '') +
     '. What you see may be out of date. Start it again with <code>python install.py --start</code> in the FleetView folder; this page carries on by itself.' : '';
   document.getElementById('live').style.background = on ? C.red : C.thinking;
+  setStoppedWords(on);
   measureBars();
   if (lastData) layout(lastData.sessions);
 }
@@ -214,9 +271,12 @@ function updateEmpty(data){
 }
 
 // ---------- layout ----------
-// Up to 12 sessions: 1 hub per folder, sessions round it, waiting ones first from the top.
-// More than 12: 1 column per folder, sessions listed down it, waiting first, labels to the right.
-const RANK = { waiting:0, thinking:1, done:2, idle:3 };
+// Small day: 1 hub per folder, sessions round it, the ones that asked you
+// something first from the top.
+// Busy day: 1 column per folder, sessions listed down it, labels to the right.
+// Columns start as soon as ANY folder has more than 4 sessions, because from 5
+// up the ring puts neighbouring titles 9 pixels apart and they read as 1 line.
+const RANK = { waiting:0, approval:1, thinking:2, finished:3, done:4, idle:5 };
 let COLS = false;
 function place(s, tx, ty, h, extra){
   let n = nodes.get(s.sessionId);
@@ -244,7 +304,8 @@ function layout(sessions){
   for (const s of sessions){ const g = s.group || 'Other'; if (!byGroup.has(g)) byGroup.set(g, []); byGroup.get(g).push(s); }
   const groups = [...byGroup.keys()].sort((a,b) => (a==='Other') - (b==='Other') || a.localeCompare(b));
   for (const list of byGroup.values()) list.sort((a,b) => (RANK[shown(a)] - RANK[shown(b)]) || (a.sessionId > b.sessionId ? 1 : -1));
-  COLS = sessions.length > 12;
+  const busiest = Math.max(0, ...[...byGroup.values()].map(l => l.length));
+  COLS = sessions.length > 12 || busiest > COLS_PER_FOLDER;
   const live = new Set();
   if (COLS){
     const colW = Math.max(200, (Weff - 24) / groups.length), rowH = 50, top = TOP + 58;
@@ -280,7 +341,9 @@ function layout(sessions){
         const a = (i / list.length) * Math.PI * 2 - Math.PI/2;
         const tx = h.tx + Math.cos(a) * r, ty = Math.min(H - BOTTOM - 62, Math.max(TOP + 34, h.ty + Math.sin(a) * r));
         place(s, tx, ty, h, { chars: 26 });
-        placeSubs(s, (j, n) => { const sa = a + ((j+1) / (n + 1)) * Math.PI - Math.PI/2; return [tx + Math.cos(sa) * 50, ty + Math.sin(sa) * 50]; });
+        // Helpers sit ABOVE their session. The session's title and cost are
+        // written below it, and a helper used to be dropped straight on top of them.
+        placeSubs(s, (j, n) => { const sa = -Math.PI/2 + (j - (n - 1) / 2) * 0.45; return [tx + Math.cos(sa) * 50, ty + Math.sin(sa) * 50]; });
       });
     }
   }
@@ -291,12 +354,18 @@ function layout(sessions){
 // ---------- top bar ----------
 function updateHud(data){
   const t = data.totals;
-  const waiting = data.sessions.filter(s => shown(s) === 'waiting').sort((a,b) => (a.waitingSince||'').localeCompare(b.waitingSince||''));
+  const waiting = data.sessions.filter(s => shown(s) === 'waiting').sort(newestFirst);
   const marked = data.sessions.filter(s => shown(s) === 'done').length;
   const nc = document.getElementById('needs-count');
   nc.textContent = waiting.length + (waiting.length === 1 ? ' needs you' : ' need you');
   nc.className = waiting.length ? '' : 'zero';
+  const older = waiting.filter(s => s.waitBand === 'older').length;
+  nc.title = waiting.length
+    ? 'Claude asked ' + (waiting.length === 1 ? 'you something in 1 session' : 'you something in ' + waiting.length + ' sessions') +
+      ' and nobody has answered' + (older ? '; ' + older + ' of them asked over 30 minutes ago' : '') + '.'
+    : 'No session is waiting on an answer from you.';
   document.getElementById('h-working').textContent = t.working;
+  document.getElementById('h-appr').textContent = data.sessions.filter(s => shown(s) === 'approval').length;
   document.getElementById('h-sessions').textContent = t.sessions;
   document.getElementById('h-helpers').textContent = t.helpers;
   const hid = document.getElementById('h-hidden');
@@ -309,16 +378,30 @@ function updateHud(data){
   const up = document.getElementById('h-unpriced');
   up.textContent = t.unpricedTokens ? '+' + fmtTok(t.unpricedTokens) + ' tokens with no price' : '';
   up.title = t.unpricedTokens ? (t.unpricedModels.join(', ') + ' has no row in lib/prices.json, so its tokens are left out of the $ total rather than guessed. Add a row to price them.') : '';
+  // The strip: newest question first, wrapping into as many rows as fit, and
+  // never taller than 15% of the screen. It used to name the 3 stalest on 1 row
+  // while 300 pixels of screen below the circles sat empty.
   const box = document.getElementById('needs');
-  const LIMIT = needsOpen ? waiting.length : Math.max(1, Math.floor((W - 360) / 300));
-  const more = waiting.length - Math.min(LIMIT, waiting.length);
-  box.innerHTML = '<span class="lbl">Needs you:</span>' + (waiting.length
-    ? waiting.slice(0, LIMIT).map(s => '<button data-id="' + esc(s.sessionId) + '" title="' + esc(waitLine(s)) + '">' + esc(nameOf(s)) + ' · <span class="age">' + esc(ago(s.waitingSince)) + '</span>' + (s.waitReason === 'tool' ? ' · may need approval' : '') + '</button>').join('')
-    : '<span class="none">nothing is waiting for you</span>') +
-    (more ? '<button class="more" id="needs-more">+' + more + ' more</button>' : (needsOpen && waiting.length > 1 ? '<button class="more" id="needs-more">show fewer</button>' : '')) +
-    (marked ? '<span class="none"> (' + marked + ' marked as done)</span>' : '');
-  box.querySelectorAll('button[data-id]').forEach(b => b.onclick = () => { const n = nodes.get(b.dataset.id); if (n) renderPanel(n.data); });
-  const mb = document.getElementById('needs-more'); if (mb) mb.onclick = () => { needsOpen = !needsOpen; updateHud(lastData); layout(lastData.sessions); };
+  const maxH = Math.max(34, Math.round(H * NEEDS_MAX_SHARE));
+  const tail = (marked ? '<span class="none"> (' + marked + ' marked as done)</span>' : '');
+  const buttonFor = (s) => '<button class="' + (s.waitBand === 'older' ? 'older' : '') + '" data-id="' + esc(s.sessionId) + '" title="' + esc(waitLine(s)) + '">' +
+    esc(nameOf(s)) + ' · <span class="age">' + esc(ago(s.waitingSince)) + '</span></button>';
+  const render = (n) => {
+    const more = waiting.length - n;
+    box.innerHTML = '<span class="lbl">Needs you:</span>' + (waiting.length
+      ? waiting.slice(0, n).map(buttonFor).join('') : '<span class="none">nothing is waiting for you</span>') +
+      (more > 0 ? '<button class="more" id="needs-more">+' + more + ' older</button>'
+                : (needsOpen && waiting.length > 1 ? '<button class="more" id="needs-more">show fewer</button>' : '')) + tail;
+  };
+  box.style.maxHeight = maxH + 'px';
+  box.style.overflowY = needsOpen ? 'auto' : 'hidden';
+  let n = waiting.length;
+  render(n);
+  if (!needsOpen) while (n > 1 && box.scrollHeight > maxH + 2) { n--; render(n); }
+  box.querySelectorAll('button[data-id]').forEach(b => b.onclick = () => { const node = nodes.get(b.dataset.id); if (node) renderPanel(node.data); });
+  const mb = document.getElementById('needs-more');
+  if (mb) mb.onclick = () => { needsOpen = !needsOpen; updateHud(lastData); if (lastData) layout(lastData.sessions); };
+  if (stopped) setStoppedWords(true);
   measureBars();
 }
 function sig(v){ return (v || 0) >= 100 ? (v || 0).toFixed(0) : (v || 0).toFixed(2); }
@@ -345,7 +428,7 @@ function draw(){
     const hidden = lastData && lastData.hiddenByGroup ? lastData.hiddenByGroup[h.label] : 0;
     if (COLS){
       ctx.textAlign = 'left';
-      label(h.label + ': ' + h.count + (h.count === 1 ? ' session' : ' sessions') + (h.waiting ? ', ' + h.waiting + ' waiting' : '') + (hidden ? ', +' + hidden + ' idle not drawn' : ''), h.x + 16, h.y + 5, 'bold 14px Consolas, monospace', '#c9d4f0');
+      label(h.label + ': ' + h.count + (h.count === 1 ? ' session' : ' sessions') + (h.waiting ? ', ' + h.waiting + ' need you' : '') + (hidden ? ', +' + hidden + ' idle not drawn' : ''), h.x + 16, h.y + 5, 'bold 14px Consolas, monospace', '#c9d4f0');
       ctx.textAlign = 'center';
     } else {
       label(h.label, h.x, h.y - 15, 'bold 14px Consolas, monospace', '#c9d4f0');
@@ -354,24 +437,41 @@ function draw(){
   }
   for (const n of nodes.values()){
     lerp(n);
-    const s = n.data, st = stopped ? 'stale' : shown(s), col = C[st] || C.idle, r = COLS ? 14 : 18;
+    const s = n.data, st = stopped ? 'stale' : shown(s), col = stopped ? C.stale : colourOf(s, st), r = COLS ? 14 : 18;
     if (!stopped && n.pulse > 0){ ctx.strokeStyle = col; ctx.globalAlpha = n.pulse * 0.6; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(n.x, n.y, r + (1 - n.pulse) * 24, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; n.pulse -= 0.02; }
     if (st === 'thinking'){ ctx.fillStyle = col; ctx.globalAlpha = 0.16 + Math.sin(t*3) * 0.07;
       ctx.beginPath(); ctx.arc(n.x, n.y, r + 11, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
-    if (st === 'waiting'){ ctx.strokeStyle = col; ctx.globalAlpha = 0.45 + Math.sin(t*2) * 0.35; ctx.lineWidth = 3;
+    if (st === 'waiting' && s.waitBand !== 'older'){ ctx.strokeStyle = col; ctx.globalAlpha = 0.45 + Math.sin(t*2) * 0.35; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(n.x, n.y, r + (COLS ? 9 : 12), 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
-    // context ring: its own neutral colour, red only over 85%
+    // context ring: always the same neutral colour. Over 85% used to turn the
+    // ring red, which put 2 alarm colours on 1 dot 14 pixels across.
     const pct = (s.contextPct || 0) / 100;
     ctx.strokeStyle = C.track; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(n.x, n.y, r + 5, 0, 7); ctx.stroke();
-    ctx.strokeStyle = pct > 0.85 ? C.red : C.ringFill;
+    ctx.strokeStyle = C.ringFill;
     ctx.beginPath(); ctx.arc(n.x, n.y, r + 5, -Math.PI/2, -Math.PI/2 + pct * Math.PI * 2); ctx.stroke();
     // status fills the circle
     ctx.fillStyle = col; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7); ctx.fill();
     if (selected && selected.sessionId === s.sessionId){ ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(n.x, n.y, r + 16, 0, 7); ctx.stroke(); }
-    ctx.fillStyle = (st === 'done' || st === 'stale') ? C.title : C.letter; ctx.font = 'bold ' + (COLS ? 13 : 15) + 'px Consolas, monospace'; ctx.fillText(modelLetter(s.model), n.x, n.y + (COLS ? 4.5 : 5));
+    if (st === 'done'){
+      // a tick, not a shade: 2 greys 1 step apart are not a difference anyone can see
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.beginPath();
+      ctx.moveTo(n.x - r*0.42, n.y + r*0.02); ctx.lineTo(n.x - r*0.10, n.y + r*0.36); ctx.lineTo(n.x + r*0.46, n.y - r*0.36); ctx.stroke(); ctx.lineCap = 'butt';
+    } else {
+      ctx.fillStyle = st === 'stale' ? C.title : C.letter; ctx.font = 'bold ' + (COLS ? 13 : 15) + 'px Consolas, monospace'; ctx.fillText(modelLetter(s.model), n.x, n.y + (COLS ? 4.5 : 5));
+    }
+    if (!stopped && pct > OVER_FULL){
+      // over 85% of the context window: its own red !, away from the status colour
+      const bx = n.x + r + 4, by = n.y - r - 2;
+      ctx.fillStyle = C.red; ctx.beginPath(); ctx.arc(bx, by, 6.5, 0, 7); ctx.fill();
+      ctx.fillStyle = '#2a0308'; ctx.font = 'bold 10px Consolas, monospace'; ctx.fillText('!', bx, by + 3.5);
+    }
     const nm = nameOf(s), max = n.chars || 26;
-    const line2 = (st === 'waiting' ? 'waiting ' + ago(s.waitingSince) + ' · ' + fmtCost(s) : fmtCost(s) + ' · ' + turns(s.turnCount)) + (COLS && s.contextWindow >= 1000000 ? ' · 1M' : '');
+    const line2 = (st === 'waiting' ? 'asked you ' + sinceWords(s.waitingSince)
+      : st === 'approval' ? 'may need approval · ' + ago(s.waitingSince)
+      : st === 'finished' ? 'answered ' + sinceWords(s.finishedSince) + ' · ' + fmtCost(s)
+      : st === 'done' ? 'done · was waiting ' + ago(s.waitingSince)
+      : fmtCost(s) + ' · ' + turns(s.turnCount)) + (COLS && s.contextWindow >= 1000000 ? ' · 1M' : '');
     if (COLS){
       ctx.textAlign = 'left';
       label(nm.length > max ? nm.slice(0, max - 1) + '…' : nm, n.x + r + 17, n.y - 2, '13px Consolas, monospace', C.title);
@@ -390,7 +490,8 @@ function draw(){
     if (working){ ctx.fillStyle = col; ctx.globalAlpha = 0.2 + Math.sin(t*4) * 0.1; ctx.beginPath(); ctx.arc(sn.x, sn.y, 10, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
     ctx.fillStyle = '#0e1322'; ctx.beginPath(); ctx.arc(sn.x, sn.y, 6, 0, 7); ctx.fill();
     ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sn.x, sn.y, 6, 0, 7); ctx.stroke();
-    if (sn.data.agentType && !COLS) label(sn.data.agentType.slice(0, 18), sn.x, sn.y + 20, '12px Consolas, monospace', C.sub);
+    // The helper's name is on its hover label, not on the drawing: written on the
+    // drawing it landed on whatever session was nearest. Both layouts do the same.
   }
   requestAnimationFrame(draw);
 }
@@ -410,17 +511,18 @@ cv.addEventListener('mousemove', (e) => {
   let html = '';
   if (h.kind === 'session'){
     const s = h.n.data, st = shown(s);
-    html = '<div class="h">' + esc(nameOf(s)) + '</div><div>' + esc(WORDS[st] || st) + (st === 'waiting' ? ': ' + esc(waitLine(s)) : '') + '</div>' +
+    const hasLine = st === 'waiting' || st === 'approval' || st === 'finished';
+    html = '<div class="h">' + esc(nameOf(s)) + '</div><div>' + esc(WORDS[st] || st) + (hasLine ? ': ' + esc(waitLine(s)) : '') + '</div>' +
       '<div class="d">' + esc(modelName(s.model)) + ' (letter ' + modelLetter(s.model) + ')' + (s.contextWindow >= 1000000 ? ' · 1M = 1-million-token window' : '') + '</div>' +
       '<div class="d">' + esc(fmtCost(s)) + (s.priceKnown || s.costUSD > 0 ? ' if paid per token' : ': this model has no row in lib/prices.json') + ' · ' + turns(s.turnCount) + '</div>' +
-      '<div class="d">ring: context window ' + (s.contextPct || 0) + '% full</div><div class="d">Click for detail</div>';
+      '<div class="d">ring: context window ' + (s.contextPct || 0) + '% full' + ((s.contextPct || 0) > OVER_FULL * 100 ? ' — the red ! means it is nearly full' : '') + '</div><div class="d">Click for detail</div>';
   } else if (h.kind === 'helper'){
     const d = h.n.data;
     html = '<div class="h">Helper agent' + (d.agentType ? ': ' + esc(d.agentType) : '') + '</div><div>' + (d.status === 'thinking' ? 'working' : 'finished or resting') + '</div>' +
       (d.task ? '<div class="d">' + esc(d.task) + '</div>' : '') + '<div class="d">A helper (subagent) the session started in the last 30 minutes</div>';
   } else {
     const g = h.n;
-    html = '<div class="h">Folder: ' + esc(g.label) + '</div><div class="d">' + g.count + ' session(s) drawn today' + (g.waiting ? ', ' + g.waiting + ' waiting for you' : '') + '</div>';
+    html = '<div class="h">Folder: ' + esc(g.label) + '</div><div class="d">' + g.count + ' session(s) drawn today' + (g.waiting ? ', ' + g.waiting + ' asked you something' : '') + '</div>';
   }
   tip.innerHTML = html; tip.style.display = 'block';
   const x = Math.min(e.clientX + 16, innerWidth - tip.offsetWidth - 8), y = Math.min(e.clientY + 16, innerHeight - tip.offsetHeight - 8);
@@ -448,9 +550,9 @@ function renderPanel(s){
   const p = document.getElementById('panel');
   if (!p.classList.contains('open')){ p.classList.add('open'); if (lastData) layout(lastData.sessions); }
   const st = shown(s), win = (s.contextWindow || 200000) >= 1000000 ? '1,000,000 tokens' : '200,000 tokens';
-  const statusHtml = '<div class="status" style="border-left:4px solid ' + (C[st] || C.idle) + '"><b>' + esc(WORDS[st] || st) + '</b>' +
-    (s.status === 'waiting' ? '<br>' + esc(waitLine(s)) : '') +
-    (st === 'waiting' ? '<br><button class="done" id="mark-done">Mark as done (stop showing it as waiting)</button>' : '') +
+  const statusHtml = '<div class="status" style="border-left:4px solid ' + colourOf(s, st) + '"><b>' + esc(WORDS[st] || st) + '</b>' +
+    (['waiting', 'approval', 'finished'].includes(s.status) ? '<br>' + esc(waitLine(s)) : '') +
+    (st === 'waiting' || st === 'approval' ? '<br><button class="done" id="mark-done">Mark as done (stop showing it as waiting)</button>' : '') +
     (st === 'done' ? '<br><button class="done" id="mark-undo">Show it as waiting again</button>' : '') + '</div>';
   const priced = s.priceKnown || s.costUSD > 0;
   p.innerHTML =

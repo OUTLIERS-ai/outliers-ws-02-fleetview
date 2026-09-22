@@ -9,6 +9,9 @@
 //                                              Ctrl+C stops it. Works the same in PowerShell, cmd and bash.
 //   node tools/make-demo.js <root>             only write the made-up sessions (used by the tests)
 //   node tools/make-demo.js <root> --live      write them and keep 2 sessions "working"
+//   node tools/make-demo.js <root> --sessions 30   a busy day: 30 made-up sessions in 5 folders,
+//                                              mixed the way a real day is mixed (most answered and
+//                                              asked nothing, a few really did ask you something)
 //
 // It also writes <root>/fleetview-demo-config.json (port 3011, so it never clashes
 // with your own FleetView on 3010).
@@ -22,6 +25,8 @@ const argRoot = process.argv.slice(2).find(a => !a.startsWith('--'));
 const root = argRoot || (serve ? path.join(os.tmpdir(), 'fleetview-demo') : '');
 if (!root) { console.error('usage: npm run demo   (or: node tools/make-demo.js <empty-folder> [--live])'); process.exit(2); }
 const live = serve || process.argv.includes('--live');
+const wantIdx = process.argv.indexOf('--sessions');
+const WANT = wantIdx > 0 ? Math.max(1, parseInt(process.argv[wantIdx + 1], 10) || 0) : 0;
 const DEMO_PORT = 3011;
 const projects = path.join(root, '.claude', 'projects');
 
@@ -31,7 +36,13 @@ const FOLDERS = [
   { name: 'Content Engine', path: 'C:\\Demo\\Content Engine' },
 ];
 
-const ago = (sec) => new Date(Date.now() - sec * 1000).toISOString();
+// FleetView draws today's sessions. Run the demo at 00:20 and a "45 minutes
+// ago" session would fall on yesterday and never be drawn, so times are never
+// pushed back past the start of today. agoRaw is for the 1 session that really
+// is meant to be yesterday.
+const DAY_START = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+const agoRaw = (sec) => new Date(Date.now() - sec * 1000).toISOString();
+const ago = (sec) => new Date(Math.max(Date.now() - sec * 1000, DAY_START + 60 * 1000)).toISOString();
 const encode = (cwd) => cwd.replace(/[^A-Za-z0-9]/g, '-');
 let seq = 0;
 const id = (p) => `${p}_${(++seq).toString(36).padStart(6, '0')}`;
@@ -68,6 +79,8 @@ const S = {
   contentWorking: '11111111-aaaa-4aaa-8aaa-000000000005',
   otherUnknown: '11111111-aaaa-4aaa-8aaa-000000000006',
   yesterday: '11111111-aaaa-4aaa-8aaa-000000000007',
+  toolPending: '11111111-aaaa-4aaa-8aaa-000000000008',
+  brainAskedEarlier: '11111111-aaaa-4aaa-8aaa-000000000009',
 };
 const SUB_ID = 'a1b2c3d4e5f60718';
 
@@ -120,6 +133,22 @@ function build() {
     assistant(S.contentWorking, content, ago(2), 'claude-fable-5-1', { output_tokens: 4200, cache_read_input_tokens: 52000 }, tool('Write', 'C:\\Demo\\Content Engine\\drafts\\idea-1.md'), { branch: 'drafts', stop: true }),
   ];
 
+  // 5b. Content Engine: asked to run a command 4 minutes ago and nothing has come
+  //     back. Not "waiting for you": it may be waiting for a yes, or npm is slow.
+  files[path.join(projects, encode(content), S.toolPending + '.jsonl')] = [
+    user(S.toolPending, content, ago(600), 'Run the tests on the posts folder', { branch: 'drafts' }),
+    assistant(S.toolPending, content, ago(240), 'claude-opus-5-5', { output_tokens: 800, cache_read_input_tokens: 44000 },
+      tool('Bash'), { branch: 'drafts', stopReason: 'tool_use' }),
+  ];
+
+  // 5c. Second Brain: asked a question 45 minutes ago. Still waiting, but the
+  //     quieter amber, because it is not the live conversation.
+  files[path.join(projects, encode(brain), S.brainAskedEarlier + '.jsonl')] = [
+    user(S.brainAskedEarlier, brain, ago(3000), 'Sort the reading list'),
+    assistant(S.brainAskedEarlier, brain, ago(2700), 'claude-sonnet-5', { output_tokens: 2200, cache_read_input_tokens: 31000 },
+      text('There are 2 lists with the same name. Which one do you want me to keep?')),
+  ];
+
   // 6. A folder not in the config -> "Other", on a model with no price row.
   files[path.join(projects, encode(other), S.otherUnknown + '.jsonl')] = [
     user(S.otherUnknown, other, ago(2400), 'Fix the rounding on the invoice totals'),
@@ -128,15 +157,67 @@ function build() {
 
   // 7. Yesterday: hidden on the graph unless ?all=1.
   files[path.join(projects, encode(brain), S.yesterday + '.jsonl')] = [
-    user(S.yesterday, brain, ago(30 * 3600), 'Weekly review'),
-    assistant(S.yesterday, brain, ago(30 * 3600 - 20), 'claude-opus-4-8', {}, text('Review done.')),
+    user(S.yesterday, brain, agoRaw(30 * 3600), 'Weekly review'),
+    assistant(S.yesterday, brain, agoRaw(30 * 3600 - 20), 'claude-opus-4-8', {}, text('Review done.')),
   ];
 
   const titles = {
     brainActive: 'Tidy meeting notes', brainIdle: 'Daily note', crmWaiting: 'Who to follow up today',
     crmLarge: 'Rebuild pipeline summary', contentWorking: 'Post ideas from client wins',
     otherUnknown: 'Invoice rounding fix', yesterday: 'Weekly review',
+    toolPending: 'Run the post tests', brainAskedEarlier: 'Sort the reading list',
   };
+  // A busy day, on demand: node tools/make-demo.js <root> --sessions 30.
+  // The mix is the point. Most sessions have answered and asked nothing; only a
+  // few really did ask you something, which is what amber is for.
+  if (WANT) {
+    const order = [S.crmWaiting, S.brainActive, S.crmLarge, S.contentWorking, S.toolPending,
+      S.brainAskedEarlier, S.otherUnknown, S.brainIdle];
+    const keep = new Set(order.slice(0, WANT));
+    for (const f of Object.keys(files)) {
+      const sid = files[f][0].sessionId;
+      if (sid === S.yesterday) continue;                       // not today, never counted
+      if (!keep.has(sid)) delete files[f];
+    }
+    const extras = Math.max(0, WANT - order.length);
+    const MIX = ['finished', 'finished', 'working', 'finished', 'idle', 'approval', 'waiting',
+      'finished', 'finished', 'idle', 'working', 'finished', 'finished', 'idle', 'waiting'];
+    const WORK = ['Rewrite the About page', 'Weekly review of open deals', 'Chase the 3 unpaid invoices',
+      'Clean up the tag list', 'Draft Tuesday post', 'Summarise the Priya call', 'Find duplicate contacts',
+      'Rename the old exports', 'Check the booking form', 'Write the welcome email', 'Sort last month receipts',
+      'Update the price table', 'Trim the reading list', 'Plan next week', 'Fix the broken links',
+      'Read the quarterly figures', 'Draft the case study', 'Tidy the downloads folder', 'Answer the 4 new leads',
+      'Rework the offer page', 'Check last night backup', 'List the stale drafts'];
+    const MODELS = ['claude-opus-5', 'claude-sonnet-5', 'claude-opus-5-5', 'claude-fable-5-1', 'claude-haiku-4-5-20251001'];
+    for (let i = 0; i < extras; i++) {
+      const folder = FOLDERS[i % FOLDERS.length].path;
+      const sid = '22222222-bbbb-4bbb-8bbb-' + String(i + 1).padStart(12, '0');
+      const model = MODELS[i % MODELS.length];
+      const kind = MIX[i % MIX.length];
+      const title = WORK[i % WORK.length] + (i >= WORK.length ? ' (' + (1 + Math.floor(i / WORK.length)) + ')' : '');
+      const askedAt = 120 + (i % 7) * 260;              // 2 to 28 minutes ago
+      const events = [user(sid, folder, ago(askedAt + 600), 'Start on: ' + title.toLowerCase())];
+      if (kind === 'working') {
+        events.push(assistant(sid, folder, ago(4 + (i % 5)), model, { output_tokens: 900 + i * 7, cache_read_input_tokens: 40000 + i * 900 },
+          tool('Read', 'C:\\Demo\\notes-' + i + '.md'), { stop: false }));
+      } else if (kind === 'approval') {
+        events.push(assistant(sid, folder, ago(150 + i * 5), model, { output_tokens: 700, cache_read_input_tokens: 22000 },
+          tool('Bash'), { stopReason: 'tool_use' }));
+      } else if (kind === 'waiting') {
+        events.push(assistant(sid, folder, ago(askedAt), model, { output_tokens: 1500 + i * 11, cache_read_input_tokens: 51000 + i * 700 },
+          text('I can do that 2 ways: keep the old wording, or rewrite it from the notes.\n\nWhich would you rather?')));
+      } else if (kind === 'idle') {
+        events.push(assistant(sid, folder, ago(2000 + i * 120), model, { output_tokens: 1100, cache_read_input_tokens: 33000 },
+          tool('Write', 'C:\\Demo\\out-' + i + '.md'), { stopReason: 'tool_use' }));
+        events.push(user(sid, folder, ago(1990 + i * 120), [{ type: 'text', text: '[Request interrupted by user for tool use]' }]));
+      } else {
+        events.push(assistant(sid, folder, ago(askedAt), model, { output_tokens: 1200 + i * 9, cache_read_input_tokens: 47000 + i * 800 },
+          text('Done. ' + title + ': finished and saved.')));
+      }
+      events.push({ type: 'ai-title', aiTitle: title, sessionId: sid });
+      files[path.join(projects, encode(folder), sid + '.jsonl')] = events;
+    }
+  }
   for (const [f, ev] of Object.entries(files)) {
     const sid = ev[0].sessionId;
     const key = Object.keys(S).find(k => S[k] === sid);

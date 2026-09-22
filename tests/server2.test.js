@@ -35,7 +35,11 @@ function getWithHost(port, urlPath, host) {
     req.on('error', reject); req.end();
   });
 }
-const ago = (sec) => new Date(Date.now() - sec * 1000).toISOString();
+// Never push a made-up session back past the start of today: FleetView draws
+// today's sessions, so a suite run at 00:30 would otherwise build a day with
+// nothing in it.
+const DAY_START = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+const ago = (sec) => new Date(Math.max(Date.now() - sec * 1000, DAY_START + 60 * 1000)).toISOString();
 function writeSession(projects, folder, id, events) {
   const dir = path.join(projects, folder.replace(/[^A-Za-z0-9]/g, '-'));
   fs.mkdirSync(dir, { recursive: true });

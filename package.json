@@ -9,7 +9,7 @@
     "demo": "node tools/make-demo.js --serve",
     "test": "node --test"
   },
-  "engines": { "node": ">=20.19" },
+  "engines": { "node": ">=22" },
   "license": "MIT",
   "type": "commonjs",
   "dependencies": {

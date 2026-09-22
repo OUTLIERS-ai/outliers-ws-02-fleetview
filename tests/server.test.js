@@ -45,13 +45,13 @@ test('server answers every page and route from made-up sessions', async (t) => {
   const graph = (await (await fetch(base + '/api/graph')).json()).sessions;
   const groups = new Set(graph.map(s => s.group));
   for (const g of ['Second Brain', 'CRM', 'Content Engine', 'Other']) assert.ok(groups.has(g), 'missing group ' + g);
-  assert.equal(graph.length, 6, 'yesterday is hidden');
+  assert.equal(graph.length, 8, 'yesterday is hidden');
   assert.ok(graph.some(s => s.subagents.length === 1 && s.subagents[0].agentType === 'note-finder'));
   assert.ok(graph.some(s => s.contextWindow === 1_000_000));
   assert.ok(graph.some(s => s.priceKnown === false && s.unpricedTokens > 0));
 
   const all = (await (await fetch(base + '/api/graph?all=1')).json()).sessions;
-  assert.equal(all.length, 6, '?all=1 draws every session today, none trimmed; yesterday stays off');
+  assert.equal(all.length, 8, '?all=1 draws every session today, none trimmed; yesterday stays off');
 
   const sessions = await (await fetch(base + '/api/sessions')).json();
   assert.ok(sessions.length >= 4);

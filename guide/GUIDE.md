@@ -1,13 +1,13 @@
 ---
 title: "FleetView: Every Agent Session, Live, on a Single Screen"
-subtitle: A browser page showing every Claude Code session on your computer, grouped by your own folders, with the sessions waiting for you listed first
+subtitle: A browser page showing every Claude Code session on your computer, grouped by your own folders, with the ones that asked you something named first
 repo: https://github.com/OUTLIERS-ai/outliers-ws-02-fleetview
 piece: 2
 ---
 
 ## What it is
 
-FleetView is a single browser page that shows every Claude Code session running on your computer today, and tells you which of them are waiting for your answer.
+FleetView is a single browser page that shows every Claude Code session running on your computer today, and tells you which of them have asked you something and are waiting on your answer.
 
 Each of your folders is a small dot, called a hub: your second brain, your CRM, the folder where you write your posts (if you have one), and any other folder you name when you install. Every session hangs off the folder it runs in. A folder appears once it has a session today. Sessions from folders you did not name hang off a hub called **Other**.
 
@@ -33,32 +33,39 @@ This is piece 2 of 4 in the agent workspace. Install them in order: 1 agent-flow
 | GitHub, repo, stars | GitHub is the website where the code is kept. A repo is a project's folder of code, kept on GitHub; `git clone` copies it to your computer. Stars are GitHub's count of people who bookmarked a project. |
 | Git branch | The named version of the code a session is working on. It only shows for folders that use Git. |
 
-![FleetView with 6 made-up sessions in 4 folders. The numbered labels were drawn on for this guide; the page itself explains every mark in the key along its bottom edge.](img/fleetview-graph.png)
+![FleetView with 9 made-up sessions in 4 folders: 2 asked the member something (amber), 1 is waiting on a tool (violet), 2 are working (green), the rest have answered or are idle (blue-grey). The key along the bottom edge explains every mark.](img/fleetview-graph.png)
 
 What each part of the picture means:
 
-- **The circle's colour** is what the session is doing. Green: working. Amber: it has answered and is waiting for you. Blue-grey: idle. Amber stays until you answer, for up to 8 hours. After 8 hours the session turns blue-grey (idle) and leaves the Needs you list.
-- **"3 need you"** at the top left counts the amber sessions. The **Needs you** strip under it lists them by name, longest wait first, with how long each has waited. Click a name to open that session.
+- **The circle's colour** is what the session is doing:
+  - **Green: working.** Claude is doing something right now.
+  - **Amber: it asked you something.** Claude's last message ends in a question and nobody has answered it. This is the one colour that means "go and type".
+  - **Darker amber: it asked you over 30 minutes ago.** Still a question for you, but an older one, so it does not shout as loudly as the question you were asked 2 minutes ago.
+  - **Violet: it may need your approval.** Claude asked to run a tool and nothing has come back for over 30 seconds. That is either Claude Code asking your permission in that terminal, or a long command such as `npm install`. It is counted on its own, not as "need you".
+  - **Blue-grey: nothing for you to do.** Either idle, or Claude answered and asked nothing. The line under the circle says which.
+  - **Grey with a white tick: you pressed Mark as done.**
+- **"2 need you"** at the top left counts only the amber sessions: the ones that asked you something. A session that answered and asked nothing is never counted, which is why the number stays small enough to act on. A question stops counting after `waiting_hours` (1 hour out of the box) and the session goes blue-grey.
+- The **Needs you** strip under it names those sessions, **newest question first**, with how long each has waited. Click a name to open that session. The strip wraps onto more rows as it needs them and never takes more than about 15% of the screen height.
 - **The letter inside** is the Claude model the session uses. Anthropic names its models Opus, Sonnet, Fable, Mythos and Haiku: O Opus, S Sonnet, F Fable, M Mythos, H Haiku, and ? for any other model.
-- **The ring round the circle** shows how full the session's context window is. The ring is light grey and turns red above 85%. A small **1M** tag means the session has a 1,000,000-token window instead of the usual 200,000.
-- **Under the circle** is the session's title (Claude Code gives every session a title), then either how long it has waited or its cost and number of turns. A turn is 1 reply from the model.
-- **Small dots beside a circle** are helper agents (subagents) the session started in the last 30 minutes, with the helper's job name underneath, such as note-finder.
-- **The top bar** adds up every session today, whether or not it is drawn: how many need you, how many are working, sessions, helpers, tokens and cost. Then your **5-hour window**: a Claude subscription limits how much you can use in each 5-hour period, and this shows the tokens used so far in the current period, where you will end up at this rate, and the minutes until it resets. Then your **7-day total**: tokens used in the last 7 days, which Claude also limits. When idle sessions are left off the drawing, the top bar says how many and offers **show all**.
+- **The ring round the circle** shows how full the session's context window is. The ring is always the same light grey. Over 85% full, a small red **!** appears beside the circle: the circle's own colour stays free for what the session is doing, so the 2 never blur into 1 blob. A small **1M** tag means the session has a 1,000,000-token window instead of the usual 200,000.
+- **Under the circle** is the session's title (Claude Code gives every session a title), then 1 line saying where it stands: "asked you 4 min ago", "may need approval · 3 min", "answered 12 min ago · $0.09", or its cost and number of turns. A turn is 1 reply from the model.
+- **Small dots beside a circle** are helper agents (subagents) the session started in the last 30 minutes. Hover a dot to read what that helper is doing.
+- **The top bar** adds up every session today, whether or not it is drawn: how many need you, how many are working, how many may need approval, sessions, helpers, tokens and cost. Then your **5-hour window**: a Claude subscription limits how much you can use in each 5-hour period, and this shows the tokens used so far in the current period, where you will end up at this rate, and the minutes until it resets. Then your **7-day total**: tokens used in the last 7 days, which Claude also limits. When idle sessions are left off the drawing, the top bar says how many and offers **show all**.
 - **The key** along the bottom explains every colour, letter and mark.
 
 Hover over any circle and a label says, in words, what it is doing.
 
-![Hovering over the CRM session: its status in words, how long it has waited, its model, its cost and how full its context window is. Made-up data.](img/fleetview-hover.png)
+![Hovering over the CRM session that asked a question: what it is doing in words, how long ago it asked, its model, its cost and how full its context window is. Made-up data.](img/fleetview-hover.png)
 
-Click any circle and a side panel opens with the full detail and the last 10 entries in the session's log. Each entry is labelled **you typed** (your message), **Claude thinking** (its reasoning) or **Claude used** (a file it read or a command it ran). For a waiting session the panel has a **Mark as done** button: press it when you have finished with a session, so it stops showing as waiting. Press Escape to close the panel.
+Click any circle and a side panel opens with the full detail and the last 10 entries in the session's log. Each entry is labelled **you typed** (your message), **Claude thinking** (its reasoning) or **Claude used** (a file it read or a command it ran). For a session that asked you something, the panel has a **Mark as done** button: press it when you have dealt with that question another way, so it stops counting. Press Escape to close the panel.
 
-![The side panel for a waiting session: how long it has waited, the Mark as done button, then model, cost, tokens and its last steps. Made-up data: the people and businesses named in it are invented.](img/fleetview-panel.png)
+![The side panel for a session that asked you something: when it asked, the Mark as done button, then model, cost, tokens and its last steps. Made-up data: the people and businesses named in it are invented.](img/fleetview-panel.png)
 
 > **Note:** The dollar figures are what those tokens would cost if you paid per token. They are not money taken from your subscription. If you are on a Claude subscription (Pro or Max) you do not pay them. Read them as a size gauge. The page says this once, in its key.
 
 There is also a card view at `http://localhost:3010/cards.html` (3010 is the port), with the same sessions, the same totals and the same colours as cards. It works with no internet.
 
-![The card view of the same made-up sessions: waiting sessions first, each saying how long it has waited. Each card shows its folder group, folder name and git branch.](img/fleetview-grid.png)
+![The card view of the same made-up sessions: the ones that asked you something first, newest first, each saying when it asked. Each card names its folder once, with the git branch.](img/fleetview-grid.png)
 
 ## Why you would want it
 
@@ -138,7 +145,7 @@ The same evening Claude also added a map of all 73 of Ashley's agents, called Fl
 
 For this download we took Stargx's dashboard plus 3 of Ashley's additions (the graph page, the 5-hour and 7-day panel, and the corrected prices), and fixed what we found wrong on the day. It was checked 3 ways before you got it: a run-through of this guide by a tester who had never seen it, following only the words on the page, a usability review of the pages, and a security review of the code. What they found is fixed:
 
-- **Amber did not last.** The original kept a session amber for 15 seconds after Claude answered, then turned it blue, so a session that asked you a question 4 minutes ago looked the same as a session nobody had touched since breakfast. Worse, Claude Code writes a few extra lines to its log after each reply, and those reset the colour. Yours stays amber until you answer.
+- **Amber did not last, and then it never stopped.** The original kept a session amber for 15 seconds after Claude answered, then turned it blue, so a session that asked you a question 4 minutes ago looked the same as a session nobody had touched since breakfast. (Claude Code writes a few bookkeeping lines to its log after each reply, and those were resetting the colour.) The first fix went the other way: every finished reply counted, so on a 30-session day 18 circles were amber and the colour told you nothing. The rule you have is the narrow one: a session is amber only when Claude's last message asked you something. "Done, saved." is not a question, so that session sits quietly in blue-grey and says "answered 12 min ago".
 - **The 7-day figure counted other AI tools.** ccusage adds up every AI coding tool it finds on your computer unless it is asked for Claude only. Yours asks for Claude Code only (`ccusage claude`, checked with ccusage 20.0.24 on 2026-09-22).
 - **The totals disagreed.** The graph added up only the sessions it drew, and the card page hid others. Both pages now show the same totals for every session today, and say when some are not drawn.
 - **A stopped server looked alive.** If FleetView stopped, the page froze and kept a session pulsing green. Yours shows a red **FleetView stopped** banner within 4 seconds.
@@ -155,7 +162,7 @@ For this download we took Stargx's dashboard plus 3 of Ashley's additions (the g
 
 | | Pros | Cons |
 |---|---|---|
-| Set-up | Reads files Claude Code already writes. No hooks, no settings changes, no database. Deleting the folder removes it completely. | Needs Node.js (free software that runs FleetView's server) version 20.19 or newer, which you may not have. |
+| Set-up | Reads files Claude Code already writes. No hooks, no settings changes, no database. Deleting the folder removes it completely. | Needs Node.js (free software that runs FleetView's server) version 22 or newer, and Python 3.11 or newer, which you may not have. |
 | Cost in tokens | Uses 0 Claude tokens. It is plain code reading files. | None. |
 | Cost in time | About 5 minutes to install. Starts in seconds; Ashley's 3.2 GB history answered in about 2 seconds. | The first read of a very large history takes longer and uses some processor time. |
 | What it shows | Every session in a single tab, including sessions started before FleetView, with the waiting ones first. The 5-hour gauge answers the question subscription users actually have. | It shows who is running and who is waiting. It cannot tell you whether the work is any good. Ashley's 2026-06-21 view was that a stream of events "means nothing". |
@@ -176,13 +183,13 @@ If you would rather have a bigger, polished tool that someone else maintains, lo
 
 | You need | How to check | How to get it |
 |---|---|---|
-| Node.js 20.19 or newer | Open a terminal and type `node --version`. You should see v20.19 or higher, or v22 or higher. The code package FleetView uses to watch files refuses anything older. | The LTS installer (LTS means long-term support, the steady version) from https://nodejs.org. On Windows you can instead type `winget install OpenJS.NodeJS.LTS` (the Windows installer tool). On a Mac, `brew install node` if you have Homebrew. Then open a new terminal. |
-| Python 3 | `python --version` (on a Mac, `python3 --version`) | https://www.python.org. On Windows, if typing `python` opens the Microsoft Store, install Python from python.org and tick "Add python.exe to PATH" (this lets you type `python` in any terminal), or type `py` instead of `python` in every command below. |
+| Node.js 22 or newer | Open a terminal and type `node --version`. You should see v22 or higher. Node 18 stopped getting security fixes on 2025-04-30 and Node 20 on 2026-04-30, so the installer refuses anything older. | The LTS installer (LTS means long-term support, the steady version) from https://nodejs.org. On Windows you can instead type `winget install OpenJS.NodeJS.LTS` (the Windows installer tool). On a Mac, `brew install node` if you have Homebrew. Then open a new terminal. |
+| Python 3.11 or newer | `python --version` (on a Mac, `python3 --version`). Python 3.10 and older stop getting security fixes, so the installer refuses them. | https://www.python.org. On Windows, if typing `python` opens the Microsoft Store, install Python from python.org and tick "Add python.exe to PATH" (this lets you type `python` in any terminal), or type `py` instead of `python` in every command below. |
 | Git (the tool that copies the code from GitHub to your computer) | `git --version` | https://git-scm.com |
 | Claude Code, used at least once | Look for the folder `.claude\projects` in your home folder | You have this from the earlier sessions. If not, FleetView still installs and starts reading the folder as soon as it appears. |
 | Internet | | Needed for the install and for the first run of the 5-hour gauge (it downloads ccusage). The pages themselves need nothing from the internet. |
 
-![The 4 checks in a terminal, with what a good answer looks like, and a Node.js version that is too old. The version numbers are examples.](img/before-you-start.png)
+![The 4 checks in a terminal, with what a good answer looks like, and underneath, a Node.js and a Python that are too old. The version numbers are examples.](img/before-you-start.png)
 
 ## Install it
 
@@ -195,7 +202,7 @@ cd outliers-ws-02-fleetview
 python install.py
 ```
 
-3. The installer checks Node.js. If it is missing or older than 20.19 it tells you how to get it and stops without changing anything.
+3. The installer checks Python and Node.js. If Python is older than 3.11, or Node.js is missing or older than 22, it tells you how to get it and stops without changing anything.
 4. It downloads 2 small add-on code packages FleetView needs, using npm (the download tool that comes with Node.js). This needs internet and takes under a minute.
 5. It asks where your **second brain vault** is, then your **CRM vault**. It looks for Obsidian vaults in your Documents and home folders and suggests the likely vault in brackets. Press Enter to accept, type a different path, or type `-` to skip.
 6. It asks for **any other project folders**, 1 at a time. If you keep a folder where you write your posts, add it here and give it a short name such as `Content Engine`. Press Enter on an empty line to finish.
@@ -225,22 +232,22 @@ These commands run inside the FleetView folder. In a new terminal, type `cd outl
 ## Using it day to day
 
 - **Leave the tab open.** Pin `http://localhost:3010/graph.html` in your browser. It refreshes itself every 2 seconds, and "updated 0s ago" at the top tells you it is alive.
-- **Look at the Needs you strip first.** It names every session waiting for your answer, longest wait first. Click a name to open it, then switch to that terminal and answer.
+- **Look at the Needs you strip first.** It names every session that asked you something, newest question first, and wraps onto more rows when there are more of them. Click a name to open it, then switch to that terminal and answer.
 
-![The top of the page: "3 need you", and the Needs you strip naming each waiting session with how long it has waited. Made-up data.](img/needs-strip.png)
+![The top of the page: "2 need you", and the Needs you strip naming each session that asked a question, newest first, with how long ago it asked. Made-up data.](img/needs-strip.png)
 
-- **Finished with a session? Press Mark as done.** Every session whose last word is Claude's counts as waiting, including sessions you have finished with. Open it and press **Mark as done**; it turns grey and leaves the strip. The choice is kept in this browser. If Claude writes again in that session, it comes back.
-- **"May need approval".** If a session asked to run a tool (for example a command) and nothing has come back for 30 seconds, it shows as waiting with "may need approval": Claude Code may be asking your permission in that terminal, or a long step is running. Check the terminal.
-- **Watch the rings.** A red ring means that session's context window is over 85% full. Start a fresh session for the next task, or ask it to summarise and continue.
+- **Dealt with a question another way? Press Mark as done.** Open the session and press **Mark as done**; the circle turns grey, gets a white tick and its line reads "done · was waiting 12 min", so you can see you dealt with it rather than never opened it. The choice is kept in this browser. If Claude writes again in that session, it comes back.
+- **"May need approval" is its own colour.** If a session asked to run a tool and nothing has come back for 30 seconds, it turns violet and is counted under **may need approval** in the top bar, not under "need you". Claude Code may be asking your permission in that terminal, or a long command such as `npm install` is running. Check the terminal.
+- **Watch for the red !** beside a circle. It means that session's context window is over 85% full. Start a fresh session for the next task, or ask it to summarise and carry on.
 - **Set your budgets once.** Click **5-hour window** in the top bar and type a token number, such as `100M` (100 million). Do the same for **7 days**. Allow browser notifications when asked. With no budget the gauge stays grey; with a budget it turns amber at 70% and red at 90% of the projected total, and you get 1 notice when the projection passes your budget. The budgets are saved in this browser only. If FleetView cannot read what you typed, it says so and keeps your old budget.
 - **See everything.** The graph draws every working and waiting session, plus the 3 most recent idle ones per folder. When some idle sessions are left out, the top bar says how many and offers **show all**, and each folder hub says "+2 idle not drawn". You can also open http://localhost:3010/graph.html?all=1 to draw every session.
-- **Busy days.** Above 12 sessions the graph switches to 1 column per folder, waiting sessions at the top, so 30 sessions stay readable on a laptop screen. Each column heading says how many sessions it has and how many are waiting.
+- **Busy days.** As soon as any 1 folder has more than 4 sessions, or you have more than 12 in total, the graph switches to 1 column per folder, with the sessions that asked you something at the top. 30 sessions stay readable on a laptop screen: measured on a 1366x768 window, 58 labels, none of them touching.  Each column heading says how many sessions it has and how many need you.
 
-![30 made-up sessions on a laptop-sized window: 1 column per folder, waiting sessions first. On this made-up day every session had ended on Claude's answer, so all 30 wait for the member.](img/thirty-sessions.png)
+![30 made-up sessions: 1 column per folder, the ones that asked you something at the top. Of the 30, 5 asked a question, 3 are waiting on a tool, 5 are working and the rest have answered or are idle.](img/thirty-sessions.png)
 
 - **2 different totals.** The top-bar tokens and cost add up every session today on this computer. The 5-hour gauge counts your account's current 5-hour window, which can start yesterday evening and includes sessions no longer on screen. When they differ, the 5-hour gauge is the one that matches your usage limit.
 - **Tokens that are mostly re-reads.** Most of the token total is usually "re-read context" (cache reads): Claude re-reading text it was already sent, the cheapest kind. Hover over **tokens** to see the share.
-- **New model released?** Open `lib/prices.json`, add a row with the rates from https://platform.claude.com/docs/en/about-claude/pricing, then restart FleetView (`python install.py --stop`, then `python install.py --start`). Until you do, that model shows "no price" and its tokens appear in grey as "tokens with no price", left out of the dollar total.
+- **New model released?** Open `lib/prices.json`, add a row with the rates from https://platform.claude.com/docs/en/about-claude/pricing, then restart FleetView (`python install.py --stop`, then `python install.py --start`). Until you do, that model shows "no price" and its tokens appear in grey as "tokens with no price", left out of the dollar total. The table you have was read off that page on 2026-09-22, the day Claude Opus 5.5 came out, and it carries Opus 5.5 at $4 per million tokens in and $20 out. `npm test` reads your own logs from the last 7 days and fails if a model in them has no row, so a new model cannot go unpriced without you being told.
 
 ## Fit it to your own AI system
 
@@ -328,6 +335,7 @@ In this FleetView folder, make public/graph.html work when shown inside another 
 | `--launcher` / `--no-launcher`, `--no-start` | Add or skip the logon start; do not start FleetView now |
 | `node watcher.js` or `npm start` | Start FleetView in this terminal, showing any error it hits. Ctrl+C stops it |
 | `npm run demo` | Made-up sessions on port 3011 (see the tip in Install it) |
+| `node tools/make-demo.js <folder> --sessions 30` | Writes a made-up busy day of 30 sessions into a folder you name, to see what a full screen looks like |
 | `npm test` | Runs the JavaScript tests against made-up sessions |
 | `python -m pytest -q` | Runs the installer's own checks in a temporary folder, using pytest (a Python testing tool; install it with `pip install pytest`) |
 
@@ -341,7 +349,8 @@ In this FleetView folder, make public/graph.html work when shown inside another 
 | `host` | `127.0.0.1`: only this computer can open the page. Leave it |
 | `folders` | Your folders: `[{ "name": "CRM", "path": "..." }]`. A session belongs to the folder whose path matches most closely, so a sub-folder you name wins over its parent |
 | `idle_per_folder` | How many idle sessions to draw per folder (3). The totals always count every session |
-| `waiting_hours` | How many hours an unanswered session stays amber (8). After that it turns blue-grey (idle) and leaves the Needs you list |
+| `waiting_hours` | How many hours an unanswered question stays amber (1). After that the session turns blue-grey and leaves the Needs you list. Raise it if you want yesterday evening's question still showing this morning |
+| `fresh_minutes` | Under this many minutes a question is drawn in the bright amber; older ones get the darker amber (30) |
 | `hide_paths` | `true` hides folder paths, file names and the text of the recent steps, for screen-sharing |
 | `usage.enabled` | `false` switches the 5-hour and 7-day panel off |
 | `usage.package` | The ccusage version FleetView runs (`ccusage@20.0.24`, checked 2026-09-22). Change it only on purpose |
@@ -361,7 +370,9 @@ After any change, restart FleetView: `python install.py --stop`, then `python in
 
 ## When it goes wrong
 
-![What the page looks like when FleetView has stopped: a red banner with the command to start it again. Made-up data.](img/fleetview-stopped.png)
+![What the page looks like when FleetView has stopped: a red banner with the command to start it again, and a top bar that has gone quiet with it — the count reads "2 needed you at 00:16" instead of pretending to be live. Made-up data.](img/fleetview-stopped.png)
+
+![The top of the page when `config.json` cannot be read: an amber banner naming the fault and saying the folder names and port are the defaults until it is fixed. Made-up data.](img/config-broken.png)
 
 | What you see | Why | The fix |
 |---|---|---|
@@ -369,9 +380,13 @@ After any change, restart FleetView: `python install.py --stop`, then `python in
 | "Port 3010 is already in use" | Another program is using that port. On 2026-06-12 another tool, agent-flow (piece 1 of 4), was already on 3001, which is why FleetView moved to 3010. | Open http://localhost:3010/graph.html; if FleetView is there, it is already running. If not, run `python install.py` again and choose another port. |
 | The logon start is there but the page does not open after a restart | The Startup file points at Node.js by its full address. If you reinstalled Node.js in another folder, the file still points at the old folder. | Run `python install.py` again and press Enter at each question; it rewrites the logon file. |
 | `python` opens the Microsoft Store | Windows ships a shortcut that points at the Store until Python is installed. | Install Python from python.org and tick "Add python.exe to PATH" (this lets you type `python` in any terminal), or type `py` instead of `python`. |
-| The installer says Node.js is too old | FleetView needs Node.js 20.19 or newer. | Install the LTS version from https://nodejs.org, open a new terminal, run `python install.py` again. |
-| Too many amber sessions | Every session whose last word is Claude's counts as waiting, including sessions you have finished with. | Press **Mark as done** on those, or lower `waiting_hours` in `config.json`. |
+| The installer says Node.js is too old | FleetView needs Node.js 22 or newer. | Install the LTS version from https://nodejs.org, open a new terminal, run `python install.py` again. |
+| The installer says Python is too old | FleetView needs Python 3.11 or newer. | Install it from https://python.org, tick "Add python.exe to PATH", open a new terminal, run `python install.py` again. |
+| Nothing is amber, but you know a session is waiting | Amber means Claude's last message asked you something. A session that stopped on a statement ("Done, saved.") is blue-grey and reads "answered 12 min ago". A question older than `waiting_hours` (1 hour) has also stopped counting. | Nothing to fix: open the session from its folder column. To keep older questions counting, raise `waiting_hours` in `config.json`. |
+| A session sits on "may need approval" for a long time | Claude asked to run a tool and nothing has come back. Either Claude Code is asking your permission in that terminal, or the command really is that long. | Look at that terminal and answer the permission question, or leave it: the violet circle is not counted in "need you". |
+| **A wide amber banner: "Your settings file could not be read"** | `config.json` is damaged. Saving it from Notepad or PowerShell adds an invisible mark at the start of the file; a comma after the last item, a `//` comment, or a half-saved file do the same. FleetView is then running on the default settings: none of your folder names and the port it was started on. | The banner names the line. Fix that line, or run `python install.py` to write the file again. `python install.py --start` refuses to start at all on a damaged file, so your settings are never quietly thrown away. |
 | A session shows "no price" | Its model has no row in `lib/prices.json`. Ashley's June copy had no Opus 5 row and silently used Sonnet 4.6 rates, which made every cost wrong. | Add the model's row from https://platform.claude.com/docs/en/about-claude/pricing and restart. |
+| A red **!** beside a circle | That session's context window is over 85% full. | Start a fresh session for the next task, or ask this one to summarise and carry on. |
 | A ring sits at 100% on a long session | The session has a 1,000,000-token window but FleetView had not seen evidence of it yet. Ashley's copy always assumed 200,000. | FleetView switches to 1,000,000 when the model name ends in `[1m]` or a turn passes 200,000. The side panel says which rule it used. Until then, a ring on a session with the 1,000,000-token window reads too full. |
 | 5-hour gauge shows "not available" | ccusage could not run: no internet on the first run, or npx (the tool that downloads and runs ccusage) is blocked by your computer's security settings. | Hover over the gauge to see the reason. Check your internet, or switch the panel off in `config.json` (`"usage": {"enabled": false}`). |
 | A session you just started does not appear | Before your first Claude Code session the log folder does not exist. | Wait a few seconds: FleetView looks for the folder every 3 seconds and starts reading as soon as it appears. The empty page tells you which folder it is waiting for. |

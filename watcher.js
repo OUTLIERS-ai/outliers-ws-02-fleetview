@@ -11,26 +11,33 @@ const os = require('os');
 const { exec, execFile } = require('child_process');
 const express = require('express');
 const chokidar = require('chokidar');
-const { createStore, DEFAULT_WAIT_CAP_H } = require('./lib/sessions');
+const { createStore, DEFAULT_WAIT_CAP_H, DEFAULT_FRESH_MIN } = require('./lib/sessions');
 const { makeGrouper, lastPart } = require('./lib/groups');
 const { PRICES_CHECKED, PRICES_SOURCE } = require('./lib/pricing');
+const { readConfigFile } = require('./lib/config');
 const usageLib = require('./lib/usage');
 
 // ---------- config ----------
+// A config.json that cannot be read is never swallowed: the fault travels in
+// CFG.configError, /api/meta carries it, and both pages put a red line at the
+// top saying which line is wrong and that the folder names and port are the
+// defaults. Before 2026-09-22 this was 1 line in a log file nobody opens.
 function loadConfig() {
   const file = process.env.FLEETVIEW_CONFIG || path.join(__dirname, 'config.json');
-  let cfg = {};
-  try { cfg = JSON.parse(fs.readFileSync(file, 'utf8')); }
-  catch (e) { if (fs.existsSync(file)) console.error(`config.json could not be read (${e.message}); using defaults.`); }
+  const read = readConfigFile(file);
+  const cfg = read.config || {};
+  if (read.error) console.error(read.error.message + ' Folder names and port are the defaults until it is fixed.');
   const claudeDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
   return {
     file,
+    configError: read.error ? { ...read.error, file, usingDefaults: true } : null,
     port: parseInt(process.env.PORT || cfg.port || 3010, 10),
     host: cfg.host || '127.0.0.1',
     projectsDir: cfg.projects_dir || path.join(claudeDir, 'projects'),
     folders: Array.isArray(cfg.folders) ? cfg.folders : [],
     idlePerFolder: Number.isInteger(cfg.idle_per_folder) ? cfg.idle_per_folder : 3,
     waitingHours: typeof cfg.waiting_hours === 'number' && cfg.waiting_hours > 0 ? cfg.waiting_hours : DEFAULT_WAIT_CAP_H,
+    freshMinutes: typeof cfg.fresh_minutes === 'number' && cfg.fresh_minutes > 0 ? cfg.fresh_minutes : DEFAULT_FRESH_MIN,
     hidePaths: !!cfg.hide_paths,
     usageEnabled: process.env.FLEETVIEW_NO_CCUSAGE === '1' ? false : (cfg.usage ? cfg.usage.enabled !== false : true),
     ccusagePackage: usageLib.packageFrom(cfg.usage && cfg.usage.package),
@@ -39,7 +46,7 @@ function loadConfig() {
 const CFG = loadConfig();
 const PID_FILE = path.join(path.dirname(path.resolve(CFG.file)), 'fleetview.pid');
 const groupOf = makeGrouper(CFG.folders);
-const store = createStore({ waitingHours: CFG.waitingHours });
+const store = createStore({ waitingHours: CFG.waitingHours, freshMinutes: CFG.freshMinutes });
 
 function publicView(s) {
   const v = store.view(s);
@@ -68,11 +75,15 @@ function graphData(showAll) {
     today.push(v);
   }
   const totals = {
-    sessions: today.length, working: 0, waiting: 0, idle: 0, helpers: 0,
+    sessions: today.length, working: 0, waiting: 0, approval: 0, finished: 0, idle: 0, helpers: 0,
     tokens: 0, outputTokens: 0, cacheRead: 0, costUSD: 0, unpricedTokens: 0, unpricedModels: [],
   };
   for (const v of today) {
-    if (v.status === 'thinking') totals.working++; else if (v.status === 'waiting') totals.waiting++; else totals.idle++;
+    if (v.status === 'thinking') totals.working++;
+    else if (v.status === 'waiting') totals.waiting++;
+    else if (v.status === 'approval') totals.approval++;
+    else if (v.status === 'finished') totals.finished++;
+    else totals.idle++;
     totals.helpers += v.subagents.filter(x => x.status === 'thinking').length;
     totals.tokens += (v.tokensIn || 0) + (v.tokensOut || 0) + (v.cacheCreate || 0) + (v.cacheRead || 0);
     totals.outputTokens += v.tokensOut || 0;
@@ -99,10 +110,12 @@ function graphData(showAll) {
     kept.push(...show);
     if (list.length > show.length) { hiddenByGroup[g] = list.length - show.length; hidden += list.length - show.length; }
   }
-  // Waiting first (longest wait first), then working, then idle.
-  const rank = { waiting: 0, thinking: 1, idle: 2 };
+  // Asked you something first, newest question first — the freshest question is
+  // the one still live in a terminal; a 5-hour-old one is dead or already dealt
+  // with. Then the tool calls that may need a yes, then working, then the rest.
+  const rank = { waiting: 0, approval: 1, thinking: 2, finished: 3, idle: 4 };
   kept.sort((a, b) => (rank[a.status] - rank[b.status]) ||
-    (a.status === 'waiting' ? (a.waitingSince || '').localeCompare(b.waitingSince || '') : (b.lastEventAt || '').localeCompare(a.lastEventAt || '')));
+    (a.waitingSince ? (b.waitingSince || '').localeCompare(a.waitingSince || '') : (b.lastEventAt || '').localeCompare(a.lastEventAt || '')));
   return { sessions: kept, totals, hidden, hiddenByGroup, showAll: !!showAll, generatedAt: new Date(now).toISOString() };
 }
 
@@ -129,7 +142,8 @@ app.get('/api/meta', (req, res) => {
     pricesChecked: PRICES_CHECKED, pricesSource: PRICES_SOURCE,
     costNote: 'What these tokens would cost if you paid per token. Not money taken from your subscription.',
     folders: CFG.folders.map(f => f.name), hidePaths: CFG.hidePaths, usageEnabled: CFG.usageEnabled,
-    idlePerFolder: CFG.idlePerFolder, waitingHours: CFG.waitingHours,
+    idlePerFolder: CFG.idlePerFolder, waitingHours: CFG.waitingHours, freshMinutes: CFG.freshMinutes,
+    configError: CFG.configError,
     logsFolderFound: fs.existsSync(CFG.projectsDir),
     logsFolder: CFG.hidePaths ? '(hidden)' : CFG.projectsDir,
     pid: process.pid, port: CFG.port,
@@ -210,8 +224,11 @@ app.get('/api/usage', (req, res) => {
 // ---------- reading the logs ----------
 console.log(`FleetView reading: ${CFG.projectsDir}`);
 const want = (f) => f.endsWith('.jsonl') && !path.basename(f).includes('compact');
+// One piece per turn of the event loop, so a huge log never keeps the thread
+// to itself and the page carries on answering while it is read.
 function readSafely(f) {
-  try { store.processFile(f); } catch (e) { console.error(`Skipped ${path.basename(f)}: ${e.message}`); }
+  try { store.processFileAsync(f, (err) => { if (err) console.error(`Skipped ${path.basename(f)}: ${err.message}`); }); }
+  catch (e) { console.error(`Skipped ${path.basename(f)}: ${e.message}`); }
 }
 let watcher = null;
 function attachWatcher() {

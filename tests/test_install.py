@@ -188,19 +188,71 @@ def alive(pid):
         return False
 
 
-def test_node_minimum_is_20_19():
+def test_node_minimum_is_22():
+    """Node 18 died 2025-04-30 and Node 20 died 2026-04-30 (endoflife.date, read 2026-09-22)."""
     m = load_install()
     assert m.node_version_ok("v18.20.4") is False
-    assert m.node_version_ok("v20.18.3") is False
-    assert m.node_version_ok("v20.19.0") is True
-    assert m.node_version_ok("v21.7.3") is True
+    assert m.node_version_ok("v20.19.0") is False
+    assert m.node_version_ok("v21.7.3") is False
     assert m.node_version_ok("v22.0.0") is True
+    assert m.node_version_ok("v24.21.0") is True
+    assert m.node_version_ok("v26.3.0") is True
     assert m.node_version_ok("garbage") is False
+
+
+def test_python_floor_is_3_11_and_the_installer_checks_it():
+    """Python 3.8 died 2024-10-07, 3.9 died 2025-10-31, 3.10 dies 2026-10-31."""
+    m = load_install()
+    assert m.MIN_PY == (3, 11)
+    assert m.python_version_ok((3, 8, 10)) is False
+    assert m.python_version_ok((3, 10, 14)) is False
+    assert m.python_version_ok((3, 11, 0)) is True
+    assert m.python_version_ok((3, 13, 14)) is True
 
 
 def test_config_example_is_valid_json():
     cfg = json.loads((HERE / "config.example.json").read_text(encoding="utf-8"))
     assert cfg["port"] == 3010 and cfg["folders"]
+    assert cfg["waiting_hours"] == 1, "a wait older than an hour is not a wait any more"
+    assert cfg["fresh_minutes"] == 30
+
+
+DAMAGED_CONFIGS = {
+    "byte-order mark": b"\xef\xbb\xbf" + b'{\n  "port": 3011,\n  "folders": []\n}\n',
+    "a comma after the last item": b'{\n  "port": 3011,\n  "folders": [],\n}\n',
+    "a // comment": b'{\n  // my folders\n  "port": 3011,\n  "folders": []\n}\n',
+    "half written": b'{\n  "port": 3011,\n  "folders": [{ "name": "CRM",\n',
+    "not UTF-8": b'{\n  "port": 3011,\n  "folders": [{ "name": "CR\xff\xfe\x9dM" }]\n}\n',
+    "empty": b"",
+}
+
+
+@pytest.mark.parametrize("what", list(DAMAGED_CONFIGS))
+def test_start_refuses_a_damaged_config_and_names_the_line(tmp_path, what):
+    """It used to start anyway: every folder name gone, the port back to 3010, nothing said."""
+    env = env_for(tmp_path)
+    cfg = tmp_path / "config.json"
+    cfg.write_bytes(DAMAGED_CONFIGS[what])
+    before = cfg.read_bytes()
+    r = run(["--start"], env)
+    assert r.returncode == 1, what + ": it must refuse\n" + r.stdout
+    assert "config.json" in r.stdout, what
+    assert "line" in r.stdout.lower(), what + ": the refusal must name the line\n" + r.stdout
+    assert "was NOT started" in r.stdout or "not started" in r.stdout.lower(), r.stdout
+    assert cfg.read_bytes() == before, what + ": your file must not be touched"
+
+
+def test_json_fault_is_said_in_plain_words():
+    m = load_install()
+    problem = m.config_problem(b'{\n  "port": 3011,\n  "folders": [],\n}\n')
+    assert problem is not None
+    assert problem["line"] == 3, "the line named is the one carrying the comma"
+    assert "comma after the last item" in problem["message"]
+    half = m.config_problem(b'{\n  "port": 3011,\n  "folders": [{ "name": "CRM",\n')
+    assert "stops in the middle" in half["message"]
+    bom = m.config_problem(b"\xef\xbb\xbf{}")
+    assert bom is not None and "byte-order mark" in bom["message"].lower()
+    assert m.config_problem(b'{"port": 3010}') is None
 
 
 def test_stop_never_kills_an_unrelated_process(tmp_path):

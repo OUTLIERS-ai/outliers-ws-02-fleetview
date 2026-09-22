@@ -41,6 +41,33 @@ test('fast mode uses the premium rates', () => {
   assert.equal(P.costOfUsage('claude-opus-5', { input_tokens: 1_000_000, output_tokens: 1_000_000, speed: 'fast' }), 60);
 });
 
+// ---------- 2026-09-22, second review: the model most used here had no price row ----------
+test('Claude Opus 5.5 is priced, including its fast tier', () => {
+  const p = P.getPricing('claude-opus-5-5');
+  assert.ok(p, 'claude-opus-5-5 must have a row: it is what --model opus resolves to');
+  assert.deepEqual([p.input, p.output, p.cacheWrite5m, p.cacheWrite1h, p.cacheRead], [4, 20, 5, 8, 0.2]);
+  assert.deepEqual([p.fast.input, p.fast.output], [8, 40]);
+  assert.equal(P.getPricing('claude-opus-5-5[1m]').input, 4);
+  // 1M in + 1M out at standard rates
+  assert.equal(P.costOfUsage('claude-opus-5-5', { input_tokens: 1e6, output_tokens: 1e6 }), 24);
+  assert.equal(P.costOfUsage('claude-opus-5-5', { input_tokens: 1e6, output_tokens: 1e6, speed: 'fast' }), 48);
+});
+
+test('the bare words Claude Code accepts as model names are priced too', () => {
+  for (const [alias, real] of [['opus', 'claude-opus-5-5'], ['sonnet', 'claude-sonnet-5'], ['haiku', 'claude-haiku-4-5']]) {
+    assert.deepEqual(P.getPricing(alias), P.getPricing(real), alias + ' should be priced as ' + real);
+  }
+  assert.equal(P.aliasTarget('opus'), 'claude-opus-5-5');
+});
+
+test('the retired models are marked as retired, and still priced', () => {
+  assert.deepEqual(P.retiredModels().sort(),
+    ['claude-3-5-haiku', 'claude-opus-4', 'claude-opus-4-1', 'claude-sonnet-4']);
+  assert.equal(P.isRetired('claude-opus-4-1'), true);
+  assert.equal(P.isRetired('claude-opus-5'), false);
+  assert.equal(P.getPricing('claude-opus-4-1').output, 75, 'still priced: it runs on Bedrock and Google Cloud');
+});
+
 test('context window: 200k unless [1m] or a turn went over 200k', () => {
   assert.deepEqual(P.contextWindowFor('claude-opus-5', 150_000), { size: 200_000, source: 'assumed' });
   assert.deepEqual(P.contextWindowFor('claude-opus-5[1m]', 10), { size: 1_000_000, source: 'model id' });

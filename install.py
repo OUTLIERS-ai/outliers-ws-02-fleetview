@@ -7,9 +7,10 @@
     python install.py --uninstall  stop it and remove the logon launcher this installer made
 
 What it does, in order:
-  1. Checks Node.js 20.19 or newer and npm are installed (the file-watching
-     library, chokidar 5, needs 20.19). If not, it says how to get them and
-     stops without changing anything.
+  1. Checks Python 3.11 or newer, and Node.js 22 or newer with npm. Node 18
+     stopped getting security fixes on 2025-04-30 and Node 20 on 2026-04-30;
+     Python 3.10 stops on 2026-10-31. If one is missing or old, it says how to
+     get it and stops without changing anything.
   2. Runs `npm install` in this folder (downloads 2 small code packages).
   3. Asks where your second brain vault, your CRM vault and any other project
      folders are, and which port to use (3010 unless you say otherwise).
@@ -35,7 +36,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 CONFIG = Path(os.environ["FLEETVIEW_CONFIG"]) if os.environ.get("FLEETVIEW_CONFIG") else HERE / "config.json"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-NODE_MIN = (20, 19)
+NODE_MIN = (22, 0)
+MIN_PY = (3, 11)
 CCUSAGE_PACKAGE = "ccusage@20.0.24"
 PID_FILE = CONFIG.with_name("fleetview.pid")
 LAUNCHER_MARK = "FleetView logon launcher (made by install.py)"
@@ -73,8 +75,25 @@ def run(cmd, **kw):
 
 
 # ---------- 1. prerequisites ----------
+def python_version_ok(info=None):
+    """True for Python 3.11 or newer. 3.8 died 2024-10-07, 3.9 died 2025-10-31, 3.10 dies 2026-10-31."""
+    v = tuple((info or sys.version_info)[:2])
+    return v >= MIN_PY
+
+
+def check_python():
+    if python_version_ok():
+        return True
+    say("")
+    say("  Stopping: this is Python %d.%d. FleetView needs Python 3.11 or newer." % sys.version_info[:2])
+    say("  Python 3.10 and older no longer get security fixes.")
+    say("  Get it from https://python.org (tick \"Add python.exe to PATH\"), then run  python install.py  again.")
+    say("  Nothing was changed.")
+    return False
+
+
 def node_version_ok(text):
-    """True for v20.19.0 or newer. chokidar 5 (the file watcher) refuses anything older."""
+    """True for v22.0.0 or newer. Node 18 died 2025-04-30 and Node 20 died 2026-04-30."""
     m = re.match(r"v?(\d+)\.(\d+)", (text or "").strip())
     return bool(m) and (int(m.group(1)), int(m.group(2))) >= NODE_MIN
 
@@ -89,8 +108,8 @@ def check_node():
     except OSError as e:
         return None, None, "Node.js would not start: %s" % e
     if not node_version_ok(out):
-        return None, None, ("Node.js %s is too old. FleetView needs version 20.19 or newer "
-                            "(any v22 or v24 is fine)." % (out or "(unknown)"))
+        return None, None, ("Node.js %s is too old. FleetView needs version 22 or newer "
+                            "(24 is the current long-term support version)." % (out or "(unknown)"))
     if not npm:
         return None, None, "npm (it comes with Node.js) is not on your PATH."
     return node, npm, out
@@ -98,7 +117,7 @@ def check_node():
 
 def how_to_get_node():
     say("")
-    say("  How to get Node.js 20.19 or newer (free, about 2 minutes):")
+    say("  How to get Node.js 22 or newer (free, about 2 minutes):")
     if sys.platform == "win32":
         say("    Windows:  winget install OpenJS.NodeJS.LTS")
         say("              or download the LTS installer from https://nodejs.org")
@@ -141,11 +160,74 @@ def projects_dir():
 
 
 # ---------- 4. config ----------
-def load_existing():
+def _line_and_column(text, offset):
+    upto = text[:max(0, offset)]
+    return upto.count("\n") + 1, offset - upto.rfind("\n")
+
+
+def config_problem(raw):
+    """What is wrong with these config.json bytes, in plain words, or None.
+
+    Before 2026-09-23 a damaged config.json was simply ignored: FleetView
+    started, every folder name vanished, the port went back to 3010, and
+    nothing said so. Now --start refuses and names the line."""
+    if raw is None:
+        return None
+    if raw == b"":
+        return {"line": 1, "column": 1, "message": "config.json is empty."}
+    if raw[:3] == b"\xef\xbb\xbf":
+        return {"line": 1, "column": 1,
+                "message": "config.json starts with an invisible byte-order mark, which Notepad and "
+                           "PowerShell add when they save a file. Save it again as UTF-8 without that mark."}
     try:
-        return json.loads(CONFIG.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as e:
+        line, column = _line_and_column(raw.decode("utf-8", errors="replace"), e.start)
+        return {"line": line, "column": column,
+                "message": "config.json is not saved as UTF-8: line %d has a character FleetView cannot read. "
+                           "Save it as UTF-8." % line}
+    try:
+        value = json.loads(text)
+    except ValueError as e:
+        line = getattr(e, "lineno", 1)
+        column = getattr(e, "colno", 1)
+        lines = text.split("\n")
+        snippet = lines[line - 1].strip() if 0 < line <= len(lines) else ""
+        msg = str(e)
+        if snippet.startswith("//"):
+            why = "settings files cannot hold // comments"
+        elif getattr(e, "pos", 0) >= len(text.rstrip()):
+            why = "the file stops in the middle: a bracket or a quote was never closed"
+        elif "trailing comma" in msg or "Expecting property name" in msg or snippet.startswith("}") or snippet.startswith("]"):
+            why = "there is a comma after the last item"
+        elif "Unterminated" in msg or "control character" in msg:
+            why = "a piece of text was never closed with a quote"
+        elif "delimiter" in msg:
+            why = "a comma or a bracket is missing"
+        else:
+            why = "a value is missing or mistyped"
+        return {"line": line, "column": column, "message":
+                "config.json could not be read (line %d, column %d): %s." % (line, column, why)}
+    if not isinstance(value, dict):
+        return {"line": 1, "column": 1, "message": "config.json must be a set of settings inside { }."}
+    return None
+
+
+def read_config():
+    """(settings, problem). A damaged file gives ({}, problem) and is never overwritten in silence."""
+    try:
+        raw = CONFIG.read_bytes()
+    except OSError:
+        return {}, None
+    problem = config_problem(raw)
+    if problem:
+        return {}, problem
+    return json.loads(raw.decode("utf-8")), None
+
+
+def load_existing():
+    cfg, _problem = read_config()
+    return cfg
 
 
 def write_config(cfg):
@@ -371,6 +453,13 @@ def start_only():
     say("FleetView start")
     if not CONFIG.exists():
         say("  FleetView is not installed yet (no %s). Run  python install.py  first." % CONFIG.name)
+        return 1
+    _cfg, problem = read_config()
+    if problem:
+        say("  FleetView was NOT started, so your settings are not quietly thrown away.")
+        say("  %s" % problem["message"])
+        say("  The fault is on line %d of %s." % (problem["line"], CONFIG))
+        say("  Fix that line, or run  python install.py  to write the file again. Your file was not touched.")
         return 1
     node, _npm, info = check_node()
     if not node:
