@@ -143,10 +143,10 @@
         e('div', { className: 'card-meta' },
           e('div', { className: 'meta-item' }, e('span', { className: 'meta-key' }, 'Model'), e('span', { className: 'meta-val' }, modelName(s.model))),
           e('div', { className: 'meta-item' }, e('span', { className: 'meta-key' }, 'If paid per token'), e('span', { className: 'meta-val', title: s.priceKnown || s.costUSD > 0 ? '' : (s.unpricedModels || []).join(', ') + ' has no row in lib/prices.json, so it is left out of the $ total' }, cost(s))),
-          e('div', { className: 'meta-item' }, e('span', { className: 'meta-key' }, 'Output'), e('span', { className: 'meta-val' }, fmtTok(s.tokensOut))),
-          e('div', { className: 'meta-item' }, e('span', { className: 'meta-key' }, 'Re-read'), e('span', { className: 'meta-val' }, fmtTok(s.cacheRead))),
+          e('div', { className: 'meta-item' }, e('span', { className: 'meta-key' }, 'Output tokens'), e('span', { className: 'meta-val' }, fmtTok(s.tokensOut))),
+          e('div', { className: 'meta-item' }, e('span', { className: 'meta-key' }, 'Re-read tokens'), e('span', { className: 'meta-val' }, fmtTok(s.cacheRead))),
           e('div', { className: 'meta-item' }, e('span', { className: 'meta-key' }, 'Turns'), e('span', { className: 'meta-val' }, s.turnCount || 0)),
-          e('div', { className: 'meta-item' }, e('span', { className: 'meta-key' }, 'Last activity'), e('span', { className: 'meta-val' }, hhmm(s.lastEventAt)))
+          e('div', { className: 'meta-item' }, e('span', { className: 'meta-key' }, 'Last wrote at'), e('span', { className: 'meta-val' }, hhmm(s.lastEventAt)))
         ),
         e('div', { className: 'bar-label' }, e('span', null, 'Context window (' + ((s.contextWindow || 200000) >= 1000000 ? '1,000,000' : '200,000') + ' tokens)'), e('span', null, pct + '% full')),
         e('div', { className: 'bar' }, e('div', { className: 'bar-fill', style: { width: pct + '%', background: pct > 85 ? 'var(--red)' : 'var(--ring)' } })),
@@ -205,8 +205,7 @@
         cfg ? e('div', { className: 'configbad' },
           e('b', null, 'Your settings file could not be read. '), cfg.message,
           ' Until it is fixed none of your folder names are in use. FleetView kept port ' + (cfg.port || '') +
-          ', the port it last ran on. The file is ',
-          e('code', null, cfg.file || 'config.json'), '.') : null,
+          ', the port it last ran on.') : null,
         e('div', { className: 'note' }, '$ = what these tokens would cost if you paid per token, not money taken from your subscription. Same sessions and totals as the graph page. The sessions that asked you something come first, newest first.'),
         stopped ? e('div', { className: 'stopped' }, e('b', null, 'FleetView stopped. '), 'This page is not getting updates any more' + (lastOk ? ' (last update ' + new Date(lastOk).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }) + ')' : '') + '. Start it again with ', e('code', null, 'python install.py --start'), '; this page carries on by itself.') : null,
         !data ? null : sessions.length === 0

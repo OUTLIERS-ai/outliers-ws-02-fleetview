@@ -217,7 +217,7 @@ function showConfigError(m){
   el.style.display = e ? 'block' : 'none';
   el.innerHTML = e ? '<b>Your settings file could not be read.</b> ' + esc(e.message) +
     ' Until it is fixed none of your folder names are in use. FleetView kept port ' + esc(e.port || '') +
-    ', the port it last ran on. The file is <code>' + esc(e.file || 'config.json') + '</code>.' : '';
+    ', the port it last ran on.' : '';
   measureBars();
 }
 function pollMeta(){
@@ -631,7 +631,7 @@ async function pollUsage(){
     if (u.block){
       const b = u.block, used = b.totalTokens || 0;
       const proj = (b.projection && b.projection.totalTokens) || 0, mins = b.projection && b.projection.remainingMinutes;
-      wel.textContent = fmtTok(used) + ' used' + (windowBudget ? ' of ' + fmtTok(windowBudget) + ' budget' : '') + (proj ? ', ' + fmtTok(proj) + ' projected' : '') + (mins != null ? ', ' + mins + ' min left' : '');
+      wel.textContent = fmtTok(used) + ' tokens used' + (windowBudget ? ' of ' + fmtTok(windowBudget) + ' budget' : '') + (proj ? ', ' + fmtTok(proj) + ' projected by the end' : '') + (mins != null ? ', ' + mins + ' min until it resets' : '');
       win.style.color = budgetColour(proj || used, windowBudget);
       const tc = b.tokenCounts || {};
       win.title = 'Current 5-hour window, Claude Code only' + demo + ': ' + new Date(b.startTime).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) + ' to ' + new Date(b.endTime).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) +
@@ -644,7 +644,7 @@ async function pollUsage(){
     else { wel.textContent = u.fetchedAt ? 'no window open' : 'first check (up to 1 minute)…'; }
     if (u.week){
       const wt = u.week.tokens || 0;
-      wkE.textContent = fmtTok(wt) + (weekBudget ? ' of ' + fmtTok(weekBudget) + ' budget' : '');
+      wkE.textContent = fmtTok(wt) + ' tokens' + (weekBudget ? ' of ' + fmtTok(weekBudget) + ' budget' : '');
       wkS.style.color = budgetColour(wt, weekBudget);
       wkS.title = 'Last ' + (u.week.days || 7) + ' days with use, Claude Code only' + demo + ': ' + fmtTok(wt) + ' tokens, $' + (u.week.cost || 0).toFixed(2) + ' if paid per token' +
         (weekBudget ? '\nYour budget: ' + fmtTok(weekBudget) + '. Click to change.' : '\nClick to set a 7-day budget in tokens.');

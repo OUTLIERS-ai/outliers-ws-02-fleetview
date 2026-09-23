@@ -656,7 +656,13 @@ def main(argv=None):
         want = ask_yes("Start FleetView automatically, with no window, when you log in?", True, interactive) if interactive else False
     if want:
         res = install_launcher(node)
-        say("  Logon launcher: %s (%s)." % (res, launcher_path()))
+        p = launcher_path()
+        if res == "skipped" or p is None:
+            say("  Started at login: not set up.")
+        else:
+            where = "your Startup folder" if sys.platform == "win32" else "your login items"
+            verb = "was written into" if res == "written" else "is already in"
+            say("  Started at login: a small file called %s %s %s (%s)." % (p.name, verb, where, p))
 
     started = False
     already = False

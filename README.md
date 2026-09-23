@@ -49,8 +49,8 @@ It adds no hooks, changes no settings and starts no agents. It only reads the lo
 | `python install.py --yes --second-brain PATH --crm PATH --folder "NAME=PATH" --port N --no-ccusage --no-launcher --no-start` | Install with no questions |
 | `node watcher.js` / `npm start` | Start FleetView in this terminal, showing any error |
 | `npm run demo` | Made-up sessions on port 3011 |
-| `npm test` | JavaScript tests against made-up sessions |
-| `python -m pytest -q` | Installer tests in a temp folder |
+| `npm test` | 60 JavaScript checks against made-up sessions |
+| `python -m pytest -q` | 26 installer checks in a temp folder. 86 checks in total with `npm test`; both sets passed from a fresh copy on 2026-09-23 |
 
 ## Settings (`config.json`)
 

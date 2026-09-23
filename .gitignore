@@ -11,3 +11,4 @@ fleetview.pid
 config.json.bak-*
 guide/*.pdf
 guide/*.html
+_superseded/
