@@ -83,6 +83,26 @@ FleetView answers 3 questions:
 
 It only reads the log files Claude Code already writes for every session, in the folder `.claude\projects` inside your home folder (written `~/.claude/projects`). It adds no hooks and changes no settings.
 
+### What it is for
+
+Seeing every Claude Code session on your computer today on 1 screen, which of them asked you a question, and how much of your 5-hour usage allowance is gone.
+
+### Works well when
+
+- **You run 3 or more sessions at once**, each in its own terminal window, and you keep losing track of which one is waiting for you.
+- **You are on a Claude subscription** and want to know how close you are to the 5-hour limit before you start a long job.
+- **You want to catch a full context window early.** A red **!** beside a session at 85% full is your cue to finish or restart it before it starts forgetting the beginning of the conversation.
+- **You came back after an hour away** and want to know what moved, in which folder, without clicking through 6 windows.
+- **You want to know where your usage went today**, folder by folder, rather than as 1 total.
+
+### Does not work well when
+
+- **You read the pound and dollar figures as money.** They are the pay-per-token prices for the tokens used. On a Claude subscription no such money leaves your account. Read them as a size gauge, nothing more.
+- **You use a model FleetView does not price.** It carries Anthropic's own published price list only. A model with no row is flagged on screen rather than guessed, and you add its prices yourself in `lib/prices.json`.
+- **You expect "needs you" to mean "finished".** It means Claude's last message ended in a question. A session grinding through a 40-minute job in silence is not counted at all, so a long quiet job looks the same as a job that finished and asked nothing.
+- **You want to know whether the work is any good.** It reports who is running and who is waiting. It cannot judge the output, and it never reads the answer.
+- **You are screen-sharing.** The side panel shows folder paths, file names and the start of what you typed. Set `hide_paths` to `true` in `config.json` before you share.
+
 ## How we built it
 
 Everything below comes from Ashley's own records. The times on 2026-06-12 are the times of the screenshots saved that day.
@@ -250,6 +270,8 @@ These commands run inside the FleetView folder. In a new terminal, type `cd outl
 - **New model released?** Open `lib/prices.json`, add a row with the rates from https://platform.claude.com/docs/en/about-claude/pricing, then restart FleetView (`python install.py --stop`, then `python install.py --start`). Until you do, that model shows "no price" and its tokens appear in grey as "tokens with no price", left out of the dollar total. The table you have was read off that page on 2026-09-22, the day Claude Opus 5.5 came out, and it carries Opus 5.5 at $4 per million tokens in and $20 out. `npm test` reads your own logs from the last 7 days and fails if a model in them has no row, so a new model cannot go unpriced without you being told.
 
 ## Fit it to your own AI system
+
+This download is a starting point, not a finished product. It is yours now: change it until it matches how you work. FleetView is the clearest example in this set of 4, because it did not start as Ashley's at all. It started as somebody else's free dashboard, published with its code open to read, that showed 1 card per session and nothing more. Ashley moved it off port 3001 so it would stop clashing with agent-flow, replaced its price table after finding the rates were wrong by 5 times for 2 models, and then wrote the graph page you are looking at from scratch, in plain code with no libraries. That same evening he added the 5-hour and 7-day usage gauges, budget alarms you set by clicking a gauge (green under 70%, amber to 90%, red above, with a browser alert when the projection passes what you set), and a second page that drew all 87 of his agents as a map. By the end of the day almost nothing on his screen had come with the original.
 
 Each change below is a prompt you can paste into Claude Code, opened in your FleetView folder. Claude reads the code and makes the change. Then run `npm test`, which runs FleetView's own checks; every line should say it passed. Then restart FleetView with `python install.py --stop` and `python install.py --start`.
 
