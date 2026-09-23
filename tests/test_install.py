@@ -139,6 +139,7 @@ def test_start_hidden_then_stop(tmp_path):
 
 # ---------- faults found in the 2026-09-22 review; each test was written before its fix ----------
 import importlib.util
+import shutil
 import socket
 import time
 import urllib.request
@@ -253,6 +254,28 @@ def test_json_fault_is_said_in_plain_words():
     bom = m.config_problem(b"\xef\xbb\xbf{}")
     assert bom is not None and "byte-order mark" in bom["message"].lower()
     assert m.config_problem(b'{"port": 3010}') is None
+
+
+def test_the_server_refuses_a_damaged_config_in_the_same_words(tmp_path):
+    """Found on 2026-09-23: install.py --start refused a damaged config.json, and the
+    logon launcher, npm start and node watcher.js all started anyway on the default port.
+    The server refuses too now, and a member must read the same sentences either way."""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js is not installed here")
+    cfg = tmp_path / "config.json"
+    cfg.write_bytes(DAMAGED_CONFIGS["a comma after the last item"])
+    env = env_for(tmp_path, FLEETVIEW_NO_CCUSAGE="1")
+    env.pop("PORT", None)
+    r = subprocess.run([node, str(HERE / "watcher.js")], env=env, capture_output=True, text=True,
+                       creationflags=NO_WINDOW, cwd=str(HERE), timeout=30)
+    assert r.returncode != 0, "the server must refuse as well:\n" + r.stdout + r.stderr
+    said = r.stdout + r.stderr
+    assert "localhost:3010" not in said, "it must never fall back to the default port:\n" + said
+    m = load_install()
+    problem = m.config_problem(DAMAGED_CONFIGS["a comma after the last item"])
+    assert problem["message"] in said, "the server says what install.py --start says:\n" + said
+    assert "was NOT started" in said, said
 
 
 def test_stop_never_kills_an_unrelated_process(tmp_path):

@@ -128,7 +128,7 @@ test('a log folder full of files does not stop the page answering', async (t) =>
   assert.equal(sessions, FILES, 'every one of the ' + FILES + ' made-up sessions was read');
   assert.ok(firstAnswer < 4000, 'the page got its first answer after ' + firstAnswer + ' ms; it must not wait for the whole folder');
   assert.ok(worst < 1000, 'the slowest answer while reading ' + FILES + ' log files was ' + worst +
-    ' ms over ' + calls + ' calls; the page gives up and shows "FleetView stopped" after about 4 seconds');
+    ' ms over ' + calls + ' calls; the page gives up and shows "FleetView stopped" after about 5 seconds');
   console.log('300 files read; first answer ' + firstAnswer + ' ms, slowest answer ' + worst + ' ms over ' + calls + ' calls');
 });
 

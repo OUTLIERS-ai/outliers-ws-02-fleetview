@@ -20,7 +20,7 @@ Want to see it before your own sessions exist? `npm install` then `npm run demo`
 - Small dots are helper agents (subagents) started in the last 30 minutes.
 - The top bar adds up **every** session today, drawn or not, and says when idle sessions were left off the drawing (with a **show all** link, or add `?all=1` to the address). Then your **5-hour window** and **7-day total**, Claude Code only (from `ccusage claude`). Click either gauge to set a token budget.
 - Hover any circle for a label in words; click it for the detail and its last 10 steps. Escape closes the panel.
-- If FleetView stops, the page shows a red **FleetView stopped** banner within 4 seconds, and the top bar goes quiet with it ("2 needed you at 16:20" instead of a live-looking count).
+- If FleetView stops, the page shows a red **FleetView stopped** banner within 5 seconds, and the top bar and every age on the page go quiet with it ("2 needed you at 16:20" instead of a live-looking count).
 - If `config.json` cannot be read, both pages show an amber banner naming the line, and `python install.py --start` refuses to start rather than throwing your folder names and port away in silence.
 - As soon as 1 folder has more than 4 sessions, or there are more than 12 in total, the graph switches to 1 column per folder: 30 sessions on a 1366x768 screen, 58 labels, none touching.
 - `http://localhost:3010/cards.html` shows the same sessions and totals as cards. `/` goes to the graph.

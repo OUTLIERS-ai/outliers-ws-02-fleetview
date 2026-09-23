@@ -204,7 +204,8 @@
         ),
         cfg ? e('div', { className: 'configbad' },
           e('b', null, 'Your settings file could not be read. '), cfg.message,
-          ' Until it is fixed FleetView is using the default settings: none of your folder names, and the port it was started on. The file is ',
+          ' Until it is fixed none of your folder names are in use. FleetView kept port ' + (cfg.port || '') +
+          ', the port it last ran on. The file is ',
           e('code', null, cfg.file || 'config.json'), '.') : null,
         e('div', { className: 'note' }, '$ = what these tokens would cost if you paid per token, not money taken from your subscription. Same sessions and totals as the graph page. The sessions that asked you something come first, newest first.'),
         stopped ? e('div', { className: 'stopped' }, e('b', null, 'FleetView stopped. '), 'This page is not getting updates any more' + (lastOk ? ' (last update ' + new Date(lastOk).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }) + ')' : '') + '. Start it again with ', e('code', null, 'python install.py --start'), '; this page carries on by itself.') : null,

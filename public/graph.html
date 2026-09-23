@@ -127,6 +127,8 @@ const WORDS = { thinking:'Working', waiting:'Asked you something', approval:'May
   finished:'Answered, asked nothing', idle:'Idle', done:'Marked as done' };
 const OVER_FULL = 0.85;              // above this the context window gets a red ! beside the circle, never a red ring
 const NEEDS_MAX_SHARE = 0.15;        // the Needs you strip may never take more than 15% of the screen height
+const POLL_MS = 2000;                // how often the page asks FleetView for the sessions
+const FAILS_BEFORE_STOPPED = 2;      // 2 misses in a row, not 1, so a single slow answer is not called death
 const COLS_PER_FOLDER = 4;           // above this many sessions in 1 folder, the ring layout writes labels on top of each other
 const showAll = new URLSearchParams(location.search).get('all') === '1';
 const cv = document.getElementById('cv');
@@ -182,14 +184,19 @@ function fmtTok(n){ n = n || 0;
   return Math.round(n).toLocaleString('en-GB'); }
 function money(v){ v = v || 0; return '$' + (v >= 100 ? v.toFixed(0) : v.toFixed(2)); }
 function fmtCost(s){ return (s.priceKnown || s.costUSD > 0) ? money(s.costUSD) : 'no price'; }
+// What "now" is for every age on this page. While FleetView is running it is the
+// clock. Once it has stopped it is the last update, so the ages under the circles
+// and in the Needs you strip freeze with the count in the bar above them instead
+// of counting up against a server that is not there.
+function nowRef(){ return stopped && lastOkAt ? lastOkAt : Date.now(); }
 function ago(iso){
   if (!iso) return '';
-  const m = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+  const m = Math.max(0, Math.floor((nowRef() - new Date(iso).getTime()) / 60000));
   if (m < 1) return 'just now'; if (m < 60) return m + ' min'; const h = Math.floor(m/60); return h + ' hr ' + (m % 60) + ' min';
 }
 function sinceWords(iso){ const a = ago(iso); return a === 'just now' ? 'just now' : a + ' ago'; }
 function agoWords(iso){
-  const m = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+  const m = Math.max(0, Math.floor((nowRef() - new Date(iso).getTime()) / 60000));
   if (m < 1) return 'less than a minute ago'; if (m === 1) return '1 minute ago'; if (m < 60) return m + ' minutes ago';
   const h = Math.floor(m/60); return h + (h === 1 ? ' hour ' : ' hours ') + (m % 60) + ' minutes ago';
 }
@@ -198,6 +205,9 @@ function waitLine(s){
   if (s.status === 'finished') return 'Answered ' + agoWords(s.finishedSince) + ' and asked nothing, so there is nothing for you to do.';
   return 'Claude asked ' + agoWords(s.waitingSince) + ' and nobody has answered.';
 }
+// 1 needs you, 2 need you. Written once, so a folder heading and the top bar
+// cannot disagree: the folder headings used to read "3 sessions, 1 need you".
+function needWords(n){ return n + (n === 1 ? ' needs you' : ' need you'); }
 function esc(x){ const d = document.createElement('div'); d.textContent = x == null ? '' : String(x); return d.innerHTML; }
 function nameOf(s){ return s.title || ((s.gitBranch && s.gitBranch !== 'HEAD') ? s.gitBranch : (s.label || s.sessionId.slice(0,8))); }
 
@@ -206,8 +216,8 @@ function showConfigError(m){
   const e = m && m.configError;
   el.style.display = e ? 'block' : 'none';
   el.innerHTML = e ? '<b>Your settings file could not be read.</b> ' + esc(e.message) +
-    ' Until it is fixed FleetView is using the default settings: none of your folder names, and the port it was started on. ' +
-    'The file is <code>' + esc(e.file || 'config.json') + '</code>.' : '';
+    ' Until it is fixed none of your folder names are in use. FleetView kept port ' + esc(e.port || '') +
+    ', the port it last ran on. The file is <code>' + esc(e.file || 'config.json') + '</code>.' : '';
   measureBars();
 }
 function pollMeta(){
@@ -232,7 +242,7 @@ async function poll(){
     if (selected) renderPanel(selected);
   } catch (e) {
     fails++;
-    if (fails >= 2) setStopped(true);
+    if (fails >= FAILS_BEFORE_STOPPED) setStopped(true);
   }
   document.getElementById('h-fresh').textContent = lastOkAt ? 'updated ' + Math.round((Date.now() - lastOkAt) / 1000) + 's ago' : '';
 }
@@ -244,7 +254,7 @@ function setStoppedWords(on){
   const nc = document.getElementById('needs-count');
   if (on && lastData){
     const n = lastData.sessions.filter(s => shown(s) === 'waiting').length;
-    nc.textContent = n + (n === 1 ? ' needed you at ' : ' needed you at ') + when;
+    nc.textContent = n + ' needed you at ' + when;
     nc.title = 'FleetView stopped. This is how it stood at ' + when + '.';
   }
 }
@@ -258,6 +268,9 @@ function setStopped(on){
     '. What you see may be out of date. Start it again with <code>python install.py --start</code> in the FleetView folder; this page carries on by itself.' : '';
   document.getElementById('live').style.background = on ? C.red : C.thinking;
   setStoppedWords(on);
+  // The strip's ages are drawn from nowRef(). Drawing it again here is what
+  // freezes them: without this the strip counted up under a frozen bar.
+  if (lastData) updateHud(lastData);
   measureBars();
   if (lastData) layout(lastData.sessions);
 }
@@ -357,7 +370,7 @@ function updateHud(data){
   const waiting = data.sessions.filter(s => shown(s) === 'waiting').sort(newestFirst);
   const marked = data.sessions.filter(s => shown(s) === 'done').length;
   const nc = document.getElementById('needs-count');
-  nc.textContent = waiting.length + (waiting.length === 1 ? ' needs you' : ' need you');
+  nc.textContent = needWords(waiting.length);
   nc.className = waiting.length ? '' : 'zero';
   const older = waiting.filter(s => s.waitBand === 'older').length;
   nc.title = waiting.length
@@ -428,7 +441,7 @@ function draw(){
     const hidden = lastData && lastData.hiddenByGroup ? lastData.hiddenByGroup[h.label] : 0;
     if (COLS){
       ctx.textAlign = 'left';
-      label(h.label + ': ' + h.count + (h.count === 1 ? ' session' : ' sessions') + (h.waiting ? ', ' + h.waiting + ' need you' : '') + (hidden ? ', +' + hidden + ' idle not drawn' : ''), h.x + 16, h.y + 5, 'bold 14px Consolas, monospace', '#c9d4f0');
+      label(h.label + ': ' + h.count + (h.count === 1 ? ' session' : ' sessions') + (h.waiting ? ', ' + needWords(h.waiting) : '') + (hidden ? ', +' + hidden + ' idle not drawn' : ''), h.x + 16, h.y + 5, 'bold 14px Consolas, monospace', '#c9d4f0');
       ctx.textAlign = 'center';
     } else {
       label(h.label, h.x, h.y - 15, 'bold 14px Consolas, monospace', '#c9d4f0');
@@ -640,7 +653,7 @@ async function pollUsage(){
     if (u.demo){ wel.textContent += ' (made-up)'; wkE.textContent += ' (made-up)'; }
   } catch(e) {}
 }
-poll(); setInterval(poll, 2000);
+poll(); setInterval(poll, POLL_MS);
 pollUsage(); setInterval(pollUsage, 15000);
 draw();
 </script>

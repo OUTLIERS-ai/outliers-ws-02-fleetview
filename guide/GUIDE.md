@@ -93,7 +93,6 @@ Seeing every Claude Code session on your computer today on 1 screen, which of th
 - **You are on a Claude subscription** and want to know how close you are to the 5-hour limit before you start a long job.
 - **You want to catch a full context window early.** A red **!** beside a session at 85% full is your cue to finish or restart it before it starts forgetting the beginning of the conversation.
 - **You came back after an hour away** and want to know what moved, in which folder, without clicking through 6 windows.
-- **You want to know where your usage went today**, folder by folder, rather than as 1 total.
 
 ### Does not work well when
 
@@ -168,7 +167,7 @@ For this download we took Stargx's dashboard plus 3 of Ashley's additions (the g
 - **Amber did not last, and then it never stopped.** The original kept a session amber for 15 seconds after Claude answered, then turned it blue, so a session that asked you a question 4 minutes ago looked the same as a session nobody had touched since breakfast. (Claude Code writes a few bookkeeping lines to its log after each reply, and those were resetting the colour.) The first fix went the other way: every finished reply counted, so on a 30-session day 18 circles were amber and the colour told you nothing. The rule you have is the narrow one: a session is amber only when Claude's last message asked you something. "Done, saved." is not a question, so that session sits quietly in blue-grey and says "answered 12 min ago".
 - **The 7-day figure counted other AI tools.** ccusage adds up every AI coding tool it finds on your computer unless it is asked for Claude only. Yours asks for Claude Code only (`ccusage claude`, checked with ccusage 20.0.24 on 2026-09-22).
 - **The totals disagreed.** The graph added up only the sessions it drew, and the card page hid others. Both pages now show the same totals for every session today, and say when some are not drawn.
-- **A stopped server looked alive.** If FleetView stopped, the page froze and kept a session pulsing green. Yours shows a red **FleetView stopped** banner within 4 seconds.
+- **A stopped server looked alive.** If FleetView stopped, the page froze and kept a session pulsing green. Yours shows a red **FleetView stopped** banner within 5 seconds, and every age on the page freezes with it.
 - **A first run before any Claude Code session saw nothing until restarted.** Yours starts reading the log folder as soon as Claude Code creates it.
 - Ashley's copy grouped sessions by the folder name after `\Documents\`, which only fits his habits. Yours groups by the folders you name when you install.
 - His copy had no price for Opus 5, the model every session used that day, so it priced them at Sonnet 4.6 rates. Prices now come from a table checked on 2026-09-22 against Anthropic's pricing page, and a model with no price row shows "no price" instead of a guess.
@@ -303,7 +302,7 @@ In this FleetView folder, add a server-side check to watcher.js: read "budget_5h
 
 ### 4. Cost per folder per week
 
-See which of your folders uses the most: second brain, CRM or any other folder you named.
+**Where did today's usage go, folder by folder?** The download cannot tell you. The top bar adds up 1 total for the day, and no page, address or column breaks that total down by folder. This prompt adds it, so you can see which of your folders uses the most: second brain, CRM or any other folder you named.
 
 ```
 In this FleetView folder, add a GET /api/by-folder route to watcher.js that adds up tokens and cost per folder group for the last 7 days, using the sessions already read and lib/groups.js. Add a small table at the bottom of public/graph.html, opened by clicking "by folder" in the key. Label the dollar column "$ if paid per token". Add a test with the made-up sessions from tools/make-demo.js.
@@ -394,7 +393,7 @@ After any change, restart FleetView: `python install.py --stop`, then `python in
 
 ![What the page looks like when FleetView has stopped: a red banner with the command to start it again, and a top bar that has gone quiet with it — the count reads "2 needed you at 00:16" instead of pretending to be live. Made-up data.](img/fleetview-stopped.png)
 
-![The top of the page when `config.json` cannot be read: an amber banner naming the fault and saying the folder names and port are the defaults until it is fixed. Made-up data.](img/config-broken.png)
+![The top of the page when `config.json` cannot be read: an amber banner naming the fault, saying your folder names are not in use, and naming the port FleetView kept so the browser tab you already have open still works. Made-up data.](img/config-broken.png)
 
 | What you see | Why | The fix |
 |---|---|---|
@@ -406,7 +405,8 @@ After any change, restart FleetView: `python install.py --stop`, then `python in
 | The installer says Python is too old | FleetView needs Python 3.11 or newer. | Install it from https://python.org, tick "Add python.exe to PATH", open a new terminal, run `python install.py` again. |
 | Nothing is amber, but you know a session is waiting | Amber means Claude's last message asked you something. A session that stopped on a statement ("Done, saved.") is blue-grey and reads "answered 12 min ago". A question older than `waiting_hours` (1 hour) has also stopped counting. | Nothing to fix: open the session from its folder column. To keep older questions counting, raise `waiting_hours` in `config.json`. |
 | A session sits on "may need approval" for a long time | Claude asked to run a tool and nothing has come back. Either Claude Code is asking your permission in that terminal, or the command really is that long. | Look at that terminal and answer the permission question, or leave it: the violet circle is not counted in "need you". |
-| **A wide amber banner: "Your settings file could not be read"** | `config.json` is damaged. Saving it from Notepad or PowerShell adds an invisible mark at the start of the file; a comma after the last item, a `//` comment, or a half-saved file do the same. FleetView is then running on the default settings: none of your folder names and the port it was started on. | The banner names the line. Fix that line, or run `python install.py` to write the file again. `python install.py --start` refuses to start at all on a damaged file, so your settings are never quietly thrown away. |
+| **A wide amber banner: "Your settings file could not be read"** | `config.json` is damaged. Saving it from Notepad or PowerShell adds an invisible mark at the start of the file; a comma after the last item, a `//` comment, or a half-saved file do the same. FleetView keeps the port it last ran on, so the page you already have open still works, but none of your folder names are in use until you fix the file. | The banner names the line. Fix that line, or run `python install.py` to write the file again. Your file is never changed for you. |
+| **FleetView will not start, and says "FleetView was NOT started"** | `config.json` is damaged and FleetView has no record of the port it last ran on, so it will not guess one. All 4 ways of starting it refuse the same way: `python install.py --start`, `npm start`, `node watcher.js` and the logon start. Your settings are never quietly thrown away. | Read the 4 lines it prints: they name the fault and the line it is on. Fix that line, or run `python install.py` to write the file again. Started from the logon file, those 4 lines are at the end of `fleetview.log` in the FleetView folder. |
 | A session shows "no price" | Its model has no row in `lib/prices.json`. Ashley's June copy had no Opus 5 row and silently used Sonnet 4.6 rates, which made every cost wrong. | Add the model's row from https://platform.claude.com/docs/en/about-claude/pricing and restart. |
 | A red **!** beside a circle | That session's context window is over 85% full. | Start a fresh session for the next task, or ask this one to summarise and carry on. |
 | A ring sits at 100% on a long session | The session has a 1,000,000-token window but FleetView had not seen evidence of it yet. Ashley's copy always assumed 200,000. | FleetView switches to 1,000,000 when the model name ends in `[1m]` or a turn passes 200,000. The side panel says which rule it used. Until then, a ring on a session with the 1,000,000-token window reads too full. |

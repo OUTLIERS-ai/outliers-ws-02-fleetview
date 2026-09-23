@@ -46,3 +46,36 @@ test('the columns layout starts before labels can collide', () => {
   const src = read('graph.html');
   assert.match(src, /COLS_PER_FOLDER = 4/, 'above 4 sessions in 1 folder the ring layout writes labels on top of each other');
 });
+
+// ---------- found in the acceptance test, 2026-09-23 ----------
+
+test('the guide promises a stopped banner later than the page can possibly show it', () => {
+  const src = read('graph.html');
+  const poll = Number(/POLL_MS\s*=\s*(\d+)/.exec(src)[1]);
+  const fails = Number(/FAILS_BEFORE_STOPPED\s*=\s*(\d+)/.exec(src)[1]);
+  const guide = fs.readFileSync(path.join(__dirname, '..', 'guide', 'GUIDE.md'), 'utf8');
+  const promised = Number(/red \*\*FleetView stopped\*\* banner within (\d+) seconds/.exec(guide)[1]);
+  assert.ok(promised * 1000 > poll * fails,
+    'the guide promises ' + promised + ' seconds; the page cannot show the banner until ' + fails +
+    ' checks ' + poll + ' ms apart have both failed, and the failed request itself takes time on top. ' +
+    'Measured at 4.3 seconds on 2026-09-23.');
+});
+
+test('when FleetView stops, the ages stop counting up with the bar', () => {
+  const src = read('graph.html');
+  assert.match(src, /function nowRef/,
+    'one function decides what "now" is, so a stopped page freezes everywhere at once');
+  assert.match(src, /function ago\(iso\)\{[\s\S]{0,120}nowRef\(\)/,
+    'the ages under the circles and in the Needs you strip must be read off the last update, not the clock');
+  assert.match(src, /setStopped[\s\S]{0,700}updateHud\(lastData\)/,
+    'the Needs you strip is drawn again when the page freezes, so its ages freeze too');
+});
+
+test('a count of 1 reads "1 needs you", wherever it is written', () => {
+  const src = read('graph.html');
+  assert.match(src, /function needWords/, 'one function writes the count, so it cannot go wrong in 1 place only');
+  assert.doesNotMatch(src, /h\.waiting \+ ' need you'/,
+    'a folder heading with 1 waiting session read "CRM: 3 sessions, 1 need you"');
+  assert.doesNotMatch(src, /\? ' needed you at ' : ' needed you at '/,
+    'a choice between 2 identical words is not a choice');
+});

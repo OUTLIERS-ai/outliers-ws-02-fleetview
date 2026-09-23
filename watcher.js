@@ -14,24 +14,40 @@ const chokidar = require('chokidar');
 const { createStore, DEFAULT_WAIT_CAP_H, DEFAULT_FRESH_MIN } = require('./lib/sessions');
 const { makeGrouper, lastPart } = require('./lib/groups');
 const { PRICES_CHECKED, PRICES_SOURCE } = require('./lib/pricing');
-const { readConfigFile } = require('./lib/config');
+const { readConfigFile, lastGoodPort, refusalLines, damagedLines } = require('./lib/config');
 const usageLib = require('./lib/usage');
 
 // ---------- config ----------
 // A config.json that cannot be read is never swallowed: the fault travels in
 // CFG.configError, /api/meta carries it, and both pages put a red line at the
-// top saying which line is wrong and that the folder names and port are the
-// defaults. Before 2026-09-22 this was 1 line in a log file nobody opens.
+// top saying which line is wrong and that the folder names are gone. Before
+// 2026-09-22 this was 1 line in a log file nobody opens.
+//
+// The port is not allowed to go back to the default on a damaged file. That put
+// a member who had chosen another port on a dead browser tab, and put a second
+// copy of FleetView on the port another piece in this set expects. FleetView
+// keeps the port it last ran on, and when it has no record of one it does not
+// start at all and says so in the words install.py --start uses.
+const DEFAULT_PORT = 3010;
 function loadConfig() {
   const file = process.env.FLEETVIEW_CONFIG || path.join(__dirname, 'config.json');
   const read = readConfigFile(file);
   const cfg = read.config || {};
-  if (read.error) console.error(read.error.message + ' Folder names and port are the defaults until it is fixed.');
+  let port = parseInt(process.env.PORT || cfg.port || DEFAULT_PORT, 10);
+  if (read.error) {
+    const known = process.env.PORT ? parseInt(process.env.PORT, 10) : lastGoodPort(file);
+    if (!known) {
+      for (const line of refusalLines(read.error, file)) console.error(line);
+      process.exit(1);
+    }
+    port = known;
+    for (const line of damagedLines(read.error, file, port)) console.error(line);
+  }
   const claudeDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
   return {
     file,
-    configError: read.error ? { ...read.error, file, usingDefaults: true } : null,
-    port: parseInt(process.env.PORT || cfg.port || 3010, 10),
+    configError: read.error ? { ...read.error, file, usingDefaults: true, port } : null,
+    port,
     host: cfg.host || '127.0.0.1',
     projectsDir: cfg.projects_dir || path.join(claudeDir, 'projects'),
     folders: Array.isArray(cfg.folders) ? cfg.folders : [],
