@@ -339,7 +339,7 @@ def test_uninstall_stops_a_copy_started_at_logon(tmp_path):
 def test_start_without_an_install_says_what_to_do(tmp_path):
     r = run(["--start"], env_for(tmp_path))
     assert r.returncode == 1
-    assert "python install.py" in r.stdout
+    assert ("python3 install.py" if sys.platform == "darwin" else "python install.py") in r.stdout
     assert not (tmp_path / "config.json").exists()
 
 

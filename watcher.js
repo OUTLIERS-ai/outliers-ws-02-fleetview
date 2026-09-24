@@ -15,7 +15,7 @@ const chokidar = require('chokidar');
 const { createStore, DEFAULT_WAIT_CAP_H, DEFAULT_FRESH_MIN } = require('./lib/sessions');
 const { makeGrouper, lastPart } = require('./lib/groups');
 const { PRICES_CHECKED, PRICES_SOURCE } = require('./lib/pricing');
-const { readConfigFile, lastGoodPort, refusalLines, damagedLines } = require('./lib/config');
+const { PY, readConfigFile, lastGoodPort, refusalLines, damagedLines } = require('./lib/config');
 const usageLib = require('./lib/usage');
 
 // ---------- config ----------
@@ -324,7 +324,7 @@ const server = app.listen(CFG.port, CFG.host, () => {
 });
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${CFG.port} is already in use. If FleetView is already running, open http://localhost:${CFG.port}/graph.html. Otherwise run  python install.py  again and choose another port.`);
+    console.error(`Port ${CFG.port} is already in use. If FleetView is already running, open http://localhost:${CFG.port}/graph.html. Otherwise run  ${PY} install.py  again and choose another port.`);
     process.exit(1);
   }
   throw err;

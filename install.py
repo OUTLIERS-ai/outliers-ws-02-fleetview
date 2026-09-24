@@ -45,6 +45,8 @@ CCUSAGE_PACKAGE = "ccusage@20.0.24"
 PID_FILE = CONFIG.with_name("fleetview.pid")
 LAUNCHER_MARK = "FleetView logon launcher (made by install.py)"
 MAC_LABEL = "com.outliers.fleetview"
+# The command a member types to run Python: a Mac has python3 and no plain python.
+PY = "python3" if sys.platform == "darwin" else "python"
 
 
 def say(msg=""):
@@ -91,7 +93,10 @@ def check_python():
     say("")
     say("  Stopping: this is Python %d.%d. FleetView needs Python 3.11 or newer." % tuple(sys.version_info[:2]))
     say("  Python 3.10 gets security fixes only until 2026-10-31, and older versions get none.")
-    say("  Get it from https://python.org (tick \"Add python.exe to PATH\"), then run  python install.py  again.")
+    if sys.platform == "darwin":
+        say("  Get it from https://python.org, then run  python3 install.py  again.")
+    else:
+        say("  Get it from https://python.org (tick \"Add python.exe to PATH\"), then run  python install.py  again.")
     say("  Nothing was changed.")
     return False
 
@@ -130,7 +135,7 @@ def how_to_get_node():
         say("              or download the LTS installer from https://nodejs.org")
     else:
         say("    Linux:    use your package manager, or https://nodejs.org")
-    say("  Then close this terminal, open a new one, and run  python install.py  again.")
+    say("  Then close this terminal, open a new one, and run  %s install.py  again." % PY)
 
 
 # ---------- 3. finding folders ----------
@@ -524,14 +529,14 @@ def start_only():
     if not check_python():
         return 1
     if not CONFIG.exists():
-        say("  FleetView is not installed yet (no %s). Run  python install.py  first." % CONFIG.name)
+        say("  FleetView is not installed yet (no %s). Run  %s install.py  first." % (CONFIG.name, PY))
         return 1
     _cfg, problem = read_config()
     if problem:
         say("  FleetView was NOT started, so your settings are not quietly thrown away.")
         say("  %s" % problem["message"])
         say("  The fault is on line %d of %s." % (problem["line"], CONFIG))
-        say("  Fix that line, or run  python install.py  to write the file again. Your file was not touched.")
+        say("  Fix that line, or run  %s install.py  to write the file again. Your file was not touched." % PY)
         return 1
     node, _npm, info = check_node()
     if not node:
@@ -539,7 +544,7 @@ def start_only():
         how_to_get_node()
         return 1
     if not (HERE / "node_modules" / "express").is_dir():
-        say("  The code packages FleetView needs are missing. Run  python install.py  first.")
+        say("  The code packages FleetView needs are missing. Run  %s install.py  first." % PY)
         return 1
     port = config_port()
     live = running()
@@ -550,9 +555,9 @@ def start_only():
         if ask_fleetview(port):
             say("  Port %d is already used by the FleetView in another folder, so this one was not started." % port)
             say("  To run this folder as well, change \"port\" in this folder's config.json, for example to 3012,")
-            say("  then run  python install.py --start  again.")
+            say("  then run  %s install.py --start  again." % PY)
         else:
-            say("  Port %d is used by another program. Run  python install.py  again and choose another port." % port)
+            say("  Port %d is used by another program. Run  %s install.py  again and choose another port." % (port, PY))
         return 1
     if start_hidden(node):
         say("  FleetView started in the background. Open  http://localhost:%d/graph.html" % port)
@@ -643,7 +648,7 @@ def main(argv=None):
             if r.returncode != 0:
                 say("  npm install failed:")
                 say("  " + (r.stderr or r.stdout).strip()[-800:])
-                say("  Check your internet connection and run  python install.py  again. config.json was not changed.")
+                say("  Check your internet connection and run  %s install.py  again. config.json was not changed." % PY)
                 return 1
             say("  Code packages downloaded.")
 
@@ -762,7 +767,7 @@ def main(argv=None):
             stop()
             restart = True
         if port_in_use(port):
-            say("  Port %d is used by another program. Run  python install.py  again and choose another port." % port)
+            say("  Port %d is used by another program. Run  %s install.py  again and choose another port." % (port, PY))
         else:
             if restart and a.start is None:
                 start_now = True
@@ -778,12 +783,12 @@ def main(argv=None):
     say("")
     if already:
         say("  Done. FleetView is already running. Open  http://localhost:%d/graph.html" % port)
-        say("  To stop it:  python install.py --stop")
+        say("  To stop it:  %s install.py --stop" % PY)
     elif started:
         say("  Done. Open  http://localhost:%d/graph.html  in your browser." % port)
-        say("  To stop it:  python install.py --stop")
+        say("  To stop it:  %s install.py --stop" % PY)
     else:
-        say("  Done. Start it with:  python install.py --start")
+        say("  Done. Start it with:  %s install.py --start" % PY)
         say("  then open  http://localhost:%d/graph.html" % port)
     say("  Dollar figures on the page are what the tokens would cost if you paid per token.")
     say("  They are not money taken from your subscription.")
