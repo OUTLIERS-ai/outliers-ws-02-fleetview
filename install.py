@@ -131,8 +131,11 @@ def how_to_get_node():
         say("    Windows:  winget install OpenJS.NodeJS.LTS")
         say("              or download the LTS installer from https://nodejs.org")
     elif sys.platform == "darwin":
-        say("    Mac:      brew install node")
-        say("              or download the LTS installer from https://nodejs.org")
+        # nodejs.org first: `brew install node` fails on a Mac without Homebrew, so it is
+        # only offered when brew is there.
+        say("    Mac:      download the LTS installer from https://nodejs.org")
+        if shutil.which("brew"):
+            say("              or, as you have Homebrew:  brew install node")
     else:
         say("    Linux:    use your package manager, or https://nodejs.org")
     say("  Then close this terminal, open a new one, and run  %s install.py  again." % PY)
