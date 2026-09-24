@@ -152,14 +152,24 @@ test('reading a big log hands control back between pieces, so the page keeps ans
   for (let i = 0; i < 20000; i++) lines.push(JSON.stringify({ type: 'assistant', sessionId: 'chunky', timestamp: new Date().toISOString(),
     message: { id: 'c' + i, model: 'claude-opus-5', stop_reason: 'end_turn', content: [{ type: 'text', text: 'x'.repeat(200) }], usage: { output_tokens: 1 } } }));
   fs.writeFileSync(f, lines.join('\n') + '\n');
-  const store = createStore({ chunkBytes: 256 * 1024 });
-  let last = Date.now(), worstGap = 0, ticks = 0;
-  const timer = setInterval(() => { const t = Date.now(); worstGap = Math.max(worstGap, t - last); last = t; ticks++; }, 5);
+  const chunk = 256 * 1024;
+  const store = createStore({ chunkBytes: chunk });
+  // Other work, standing in for a page request: after every turn it gets, it asks for the next.
+  // A reader that hands the thread back after each piece lets it run between every 2 pieces;
+  // a reader that kept the thread would let it run once at most. Counted in turns, not in
+  // milliseconds: a test machine busy with the other test files stretches every piece's time
+  // (about 10 ms of work was measured taking up to 619 ms on a shared Intel Mac), but it cannot
+  // change the order the turns come in. How much work 1 piece may do is held by its size.
+  let turns = 0, reading = true;
+  const other = () => { if (!reading) return; turns++; setImmediate(other); };
+  setImmediate(other);
   await new Promise((resolve) => store.processFileAsync(f, resolve));
-  clearInterval(timer);
+  reading = false;
+  const pieces = Math.ceil(fs.statSync(f).size / chunk);
   assert.equal(store.view(store.sessions.get('chunky')).tokensOut, 20000, 'the whole file was read');
-  assert.ok(ticks > 3, 'other work ran while the log was being read (' + ticks + ' turns)');
-  assert.ok(worstGap < 400, 'the longest the thread was kept was ' + worstGap + ' ms; it must stay short');
+  assert.ok(store.maxReadBytes <= chunk, 'no piece is bigger than ' + chunk + ' bytes (read ' + store.maxReadBytes + ' at once)');
+  assert.ok(turns >= pieces - 1, 'other work ran ' + turns + ' times while at least ' + pieces +
+    ' pieces were read; it must get a turn between every 2 pieces');
 });
 
 test('a very large log file is read in pieces, not in 1 string', () => {
