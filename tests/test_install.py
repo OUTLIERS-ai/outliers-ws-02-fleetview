@@ -397,3 +397,119 @@ def test_rerun_while_running_says_it_is_running(tmp_path):
         assert "node watcher.js" not in r.stdout
     finally:
         run(["--stop"], env)
+
+
+# ---------- faults found in the 2026-09-24 final check; each test was written before its fix ----------
+
+def _old_python_module(monkeypatch, tmp_path):
+    monkeypatch.setenv("FLEETVIEW_CONFIG", str(tmp_path / "config.json"))
+    m = load_install()
+
+    class OldPython:                      # the real sys module, except that it says 3.10.14
+        version_info = (3, 10, 14, "final", 0)
+        def __getattr__(self, name):
+            return getattr(sys, name)
+    monkeypatch.setattr(m, "sys", OldPython())
+    def must_not_run():
+        raise AssertionError("the installer went on past an old Python")
+    monkeypatch.setattr(m, "check_node", must_not_run)
+    return m
+
+
+def test_install_refuses_python_3_10(tmp_path, monkeypatch, capsys):
+    """The guide, README and before-you-start.png say the installer refuses Python older than 3.11.
+    Until 2026-09-24 check_python() existed but nothing called it."""
+    m = _old_python_module(monkeypatch, tmp_path)
+    assert m.main(["--yes", "--skip-npm", "--no-launcher", "--no-start"]) == 1
+    out = capsys.readouterr().out
+    assert "Python 3.10" in out and "3.11 or newer" in out
+    assert "2026-10-31" in out
+    assert not (tmp_path / "config.json").exists(), "an old Python must change nothing"
+
+
+def test_start_refuses_python_3_10(tmp_path, monkeypatch, capsys):
+    m = _old_python_module(monkeypatch, tmp_path)
+    (tmp_path / "config.json").write_text('{"port": 3999}', encoding="utf-8")
+    assert m.main(["--start"]) == 1
+    assert "3.11 or newer" in capsys.readouterr().out
+
+
+def test_stop_and_uninstall_still_work_on_an_old_python(tmp_path, monkeypatch, capsys):
+    """Someone on an old Python must still be able to stop and remove FleetView."""
+    m = _old_python_module(monkeypatch, tmp_path)
+    assert m.main(["--stop"]) == 0
+    assert "3.11 or newer" not in capsys.readouterr().out
+
+
+def _copy_of_the_folder(dst):
+    shutil.copytree(HERE, dst, ignore=shutil.ignore_patterns(
+        ".git", "guide", "_superseded", "__pycache__", ".pytest_cache", "config.json", "fleetview.pid",
+        "fleetview.log", "config.json.bak-*"))
+    return dst
+
+
+def _run_in(folder, args, env):
+    return subprocess.run([sys.executable, str(folder / "install.py")] + args, env=env, capture_output=True,
+                          text=True, stdin=subprocess.DEVNULL, creationflags=NO_WINDOW, cwd=str(folder), timeout=120)
+
+
+@pytest.mark.skipif(not HAS_LIBS, reason="run npm install (or install.py) first")
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows Startup-folder file")
+def test_the_safe_way_never_touches_the_everyday_fleetview(tmp_path):
+    """GUIDE.md "The safe way": copy the folder, change the copy. Until 2026-09-24 the copy carried the
+    everyday FleetView's fleetview.pid, so  python install.py --stop  in the copy stopped the everyday
+    one, and  --launcher / --uninstall  in the copy replaced or removed its Startup file."""
+    real_port, copy_port = free_port(), free_port()
+    # the everyday FleetView: installed with the Startup file, running on its own port
+    real_dir = tmp_path / "real"
+    real_dir.mkdir()
+    real_env = env_for(tmp_path, FLEETVIEW_CONFIG=str(real_dir / "config.json"))
+    args = base_args(tmp_path)
+    args[args.index("--port") + 1] = str(real_port)
+    r = run(args + ["--launcher", "--no-ccusage", "--start"], real_env)
+    assert r.returncode == 0 and answers(real_port), r.stdout
+    real_pid = answers(real_port)["pid"]
+    vbs = tmp_path / "appdata" / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / "FleetView.vbs"
+    vbs_before = vbs.read_bytes()
+    try:
+        # the member copies the whole folder, with its config.json and fleetview.pid
+        copy = _copy_of_the_folder(tmp_path / "fleetview-test")
+        shutil.copy2(real_dir / "config.json", copy / "config.json")
+        shutil.copy2(real_dir / "fleetview.pid", copy / "fleetview.pid")
+        copy_env = env_for(tmp_path)
+        copy_env.pop("FLEETVIEW_CONFIG")
+
+        # a slip: --stop in the copy before anything else
+        _run_in(copy, ["--stop"], copy_env)
+        assert answers(real_port) and answers(real_port)["pid"] == real_pid, "--stop in the copy stopped the everyday FleetView"
+
+        # --start in the copy while it still has the everyday port: refused, and says why
+        r = _run_in(copy, ["--start"], copy_env)
+        assert r.returncode == 1 and "config.json" in r.stdout, r.stdout
+        assert answers(real_port)["pid"] == real_pid
+
+        # the steps as typed in the guide: change the port, start, stop
+        cfg = json.loads((copy / "config.json").read_text(encoding="utf-8"))
+        cfg["port"] = copy_port
+        (copy / "config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+        r = _run_in(copy, ["--start"], copy_env)
+        assert r.returncode == 0 and wait_until(lambda: answers(copy_port)), r.stdout
+        assert answers(real_port)["pid"] == real_pid
+        r = _run_in(copy, ["--stop"], copy_env)
+        assert "Stopped FleetView" in r.stdout, r.stdout
+        assert wait_until(lambda: answers(copy_port) is None, 10)
+        assert answers(real_port)["pid"] == real_pid, "stopping the copy stopped the everyday FleetView"
+
+        # the installer and --uninstall in the copy leave the everyday Startup file alone
+        cargs = base_args(tmp_path)
+        cargs[cargs.index("--port") + 1] = str(copy_port)
+        r = _run_in(copy, cargs + ["--launcher", "--no-ccusage", "--no-start"], copy_env)
+        assert r.returncode == 0, r.stdout
+        assert vbs.read_bytes() == vbs_before, "the installer in the copy replaced the everyday Startup file"
+        r = _run_in(copy, ["--uninstall"], copy_env)
+        assert vbs.exists() and vbs.read_bytes() == vbs_before, "--uninstall in the copy removed the everyday Startup file"
+        assert answers(real_port)["pid"] == real_pid
+    finally:
+        run(["--stop"], real_env)
+        wait_until(lambda: answers(real_port) is None, 10)
+        _run_in(tmp_path / "fleetview-test", ["--stop"], env_for(tmp_path, FLEETVIEW_CONFIG=str(tmp_path / "fleetview-test" / "config.json"))) if (tmp_path / "fleetview-test").exists() else None

@@ -4,19 +4,21 @@
     python install.py              ask a few questions, install, write config.json
     python install.py --start      only start FleetView (no questions), with no window
     python install.py --stop       stop the running FleetView, however it was started
-    python install.py --uninstall  stop it and remove the logon launcher this installer made
+    python install.py --uninstall  stop it, and remove the file that starts it by itself
+                                   when the computer starts (only if this installer made it)
 
 What it does, in order:
   1. Checks Python 3.11 or newer, and Node.js 22 or newer with npm. Node 18
      stopped getting security fixes on 2025-04-30 and Node 20 on 2026-04-30;
-     Python 3.10 stops on 2026-10-31. If one is missing or old, it says how to
-     get it and stops without changing anything.
+     Python 3.10 gets security fixes only until 2026-10-31. If one is missing
+     or old, it says how to get it and stops without changing anything.
   2. Runs `npm install` in this folder (downloads 2 small code packages).
   3. Asks where your second brain vault, your CRM vault and any other project
      folders are, and which port to use (3010 unless you say otherwise).
   4. Writes config.json. An existing config.json is backed up first.
-  5. Offers a hidden launcher so FleetView starts when you log in
-     (Windows: a .vbs file in your Startup folder, no window; Mac: a launchd file).
+  5. Offers to make FleetView start by itself, with no window, each time you
+     switch on your computer and sign in to Windows (Windows: a .vbs file in
+     your Startup folder; Mac: a launchd file, run when you log in to your Mac).
 
 It never touches Claude Code's settings, hooks or agents. It only reads the log
 files Claude Code already writes.
@@ -24,6 +26,7 @@ files Claude Code already writes.
 Running it twice with the same answers changes nothing the second time.
 """
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -76,24 +79,25 @@ def run(cmd, **kw):
 
 # ---------- 1. prerequisites ----------
 def python_version_ok(info=None):
-    """True for Python 3.11 or newer. 3.8 died 2024-10-07, 3.9 died 2025-10-31, 3.10 dies 2026-10-31."""
+    """True for Python 3.11 or newer. Security fixes ended for 3.8 on 2024-10-07 and 3.9 on 2025-10-31;
+    3.10 gets them until 2026-10-31."""
     v = tuple((info or sys.version_info)[:2])
     return v >= MIN_PY
 
 
 def check_python():
-    if python_version_ok():
+    if python_version_ok(sys.version_info):
         return True
     say("")
-    say("  Stopping: this is Python %d.%d. FleetView needs Python 3.11 or newer." % sys.version_info[:2])
-    say("  Python 3.10 and older no longer get security fixes.")
+    say("  Stopping: this is Python %d.%d. FleetView needs Python 3.11 or newer." % tuple(sys.version_info[:2]))
+    say("  Python 3.10 gets security fixes only until 2026-10-31, and older versions get none.")
     say("  Get it from https://python.org (tick \"Add python.exe to PATH\"), then run  python install.py  again.")
     say("  Nothing was changed.")
     return False
 
 
 def node_version_ok(text):
-    """True for v22.0.0 or newer. Node 18 died 2025-04-30 and Node 20 died 2026-04-30."""
+    """True for v22.0.0 or newer. Security fixes ended for Node 18 on 2025-04-30 and Node 20 on 2026-04-30."""
     m = re.match(r"v?(\d+)\.(\d+)", (text or "").strip())
     return bool(m) and (int(m.group(1)), int(m.group(2))) >= NODE_MIN
 
@@ -274,7 +278,7 @@ def launcher_path():
 def launcher_text(node):
     watcher = HERE / "watcher.js"
     if sys.platform == "win32":
-        # 0 = no window, False = do not wait. Starts once at logon.
+        # 0 = no window, False = do not wait. Windows runs it once, when you sign in after switching on.
         cmd = '"""%s"" ""%s"""' % (node, watcher)
         return (
             "' %s\r\n"
@@ -307,11 +311,30 @@ def launcher_encoding():
     return "utf-16" if sys.platform == "win32" else "utf-8"
 
 
+def launcher_folder(text):
+    """The FleetView folder a start-with-the-computer file made by this installer points at, or None."""
+    m = (re.search(r'sh\.CurrentDirectory = "([^"]*)"', text or "")
+         or re.search(r"<key>WorkingDirectory</key><string>([^<]*)</string>", text or ""))
+    return m.group(1) if m else None
+
+
+def points_elsewhere(text):
+    """True when the file starts the FleetView in ANOTHER folder that still exists (for example the
+    everyday folder, when this one is a copy made to try a change). A file pointing at a folder that
+    is gone is not protected: the member moved FleetView, and the file should follow."""
+    folder = launcher_folder(text)
+    if not folder:
+        return False
+    same = os.path.normcase(os.path.abspath(folder)) == os.path.normcase(os.path.abspath(str(HERE)))
+    return not same and (Path(folder) / "watcher.js").is_file()
+
+
 def install_launcher(node):
     path = launcher_path()
     text = launcher_text(node)
     if not path or text is None:
-        say("  No automatic launcher for this system. Start FleetView with:  node \"%s\"" % (HERE / "watcher.js"))
+        say("  This system has no way for the installer to start FleetView with the computer.")
+        say("  Start it yourself with:  node \"%s\"" % (HERE / "watcher.js"))
         return "skipped"
     if path.exists():
         old = path.read_bytes().decode(launcher_encoding(), errors="replace")
@@ -320,12 +343,16 @@ def install_launcher(node):
         if LAUNCHER_MARK not in old:
             say("  %s already exists and was not made by this installer. Leaving it alone." % path)
             return "skipped"
+        if points_elsewhere(old):
+            say("  %s already starts the FleetView in %s with the computer." % (path.name, launcher_folder(old)))
+            say("  Left alone, so that FleetView still starts by itself. Only 1 FleetView can start with the computer.")
+            return "elsewhere"
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_bytes(text.encode(launcher_encoding()))  # bytes: keep the exact line endings
     os.replace(tmp, path)
     if sys.platform == "darwin":
-        say("  To start it now without logging out, run:  launchctl load -w \"%s\"" % path)
+        say("  To start it now, without logging out of your Mac and back in, run:  launchctl load -w \"%s\"" % path)
     return "written"
 
 
@@ -349,7 +376,8 @@ def config_port():
 
 def read_record():
     """The running FleetView's own record: {"pid": ..., "port": ...}. FleetView writes it
-    itself when it starts, however it was started (installer, logon file or by hand)."""
+    itself when it starts, however it was started (by the installer, by itself with the computer,
+    or by hand)."""
     try:
         text = PID_FILE.read_text(encoding="utf-8").strip()
     except OSError:
@@ -377,13 +405,35 @@ def ask_fleetview(port, timeout=1.5):
         return None
 
 
+def folder_ids():
+    """Fingerprints of the folder this installer keeps fleetview.pid in, worked out the same way
+    watcher.js works out the folderId it reports on /api/meta. Both spellings of the folder are
+    tried (as written, and with shortcuts followed), so a folder reached through a shortcut still
+    matches."""
+    ids = set()
+    for p in (os.path.abspath(str(PID_FILE.parent)), os.path.realpath(str(PID_FILE.parent))):
+        if sys.platform == "win32":
+            p = p.lower()
+        ids.add(hashlib.sha256(p.encode("utf-8")).hexdigest()[:16])
+    return ids
+
+
+def is_this_folder(meta):
+    """True when the FleetView that answered keeps its record in this folder. A FleetView from
+    before 2026-09-24 reports no folderId; it is taken on its process number alone, as before."""
+    fid = (meta or {}).get("folderId")
+    return fid is None or fid in folder_ids()
+
+
 def running():
-    """(pid, port) of a FleetView that is running AND confirms its own process number, else None."""
+    """(pid, port) of a FleetView that is running, confirms its own process number, and keeps its
+    record in THIS folder, else None. A copy of the folder carries a copy of fleetview.pid; without
+    the folder check, --stop in the copy would stop the FleetView in the original folder."""
     rec = read_record()
     if not rec:
         return None
     meta = ask_fleetview(rec.get("port"))
-    if meta and meta.get("pid") == rec["pid"]:
+    if meta and meta.get("pid") == rec["pid"] and is_this_folder(meta):
         return rec["pid"], rec["port"]
     return None
 
@@ -421,8 +471,14 @@ def stop():
         return 0
     live = running()
     if not live:
-        say("  The FleetView on record (process %d) is not running any more. Nothing was stopped." % rec["pid"])
-        say("  (The record is out of date, so no other program with that number was touched.)")
+        meta = ask_fleetview(rec.get("port"))
+        if meta and meta.get("pid") == rec["pid"]:
+            say("  The %s in this folder belongs to the FleetView in another folder (port %d)." % (PID_FILE.name, rec["port"]))
+            say("  That FleetView was not stopped. This folder was probably copied from it, so the copied")
+            say("  %s was removed. Nothing from this folder is running." % PID_FILE.name)
+        else:
+            say("  The FleetView on record (process %d) is not running any more. Nothing was stopped." % rec["pid"])
+            say("  (The record is out of date, so no other program with that number was touched.)")
         try:
             PID_FILE.unlink()
         except OSError:
@@ -451,6 +507,8 @@ def stop():
 def start_only():
     """python install.py --start: start with the saved answers. No questions."""
     say("FleetView start")
+    if not check_python():
+        return 1
     if not CONFIG.exists():
         say("  FleetView is not installed yet (no %s). Run  python install.py  first." % CONFIG.name)
         return 1
@@ -475,7 +533,12 @@ def start_only():
         say("  FleetView is already running. Open  http://localhost:%d/graph.html" % live[1])
         return 0
     if port_in_use(port):
-        say("  Port %d is used by another program. Run  python install.py  again and choose another port." % port)
+        if ask_fleetview(port):
+            say("  Port %d is already used by the FleetView in another folder, so this one was not started." % port)
+            say("  To run this folder as well, change \"port\" in this folder's config.json, for example to 3012,")
+            say("  then run  python install.py --start  again.")
+        else:
+            say("  Port %d is used by another program. Run  python install.py  again and choose another port." % port)
         return 1
     if start_hidden(node):
         say("  FleetView started in the background. Open  http://localhost:%d/graph.html" % port)
@@ -489,15 +552,17 @@ def uninstall():
     say("FleetView uninstall")
     if path and path.exists():
         text = path.read_bytes().decode(launcher_encoding(), errors="replace")
-        if LAUNCHER_MARK in text:
+        if LAUNCHER_MARK in text and points_elsewhere(text):
+            say("  %s starts the FleetView in %s, not this folder, so it was left alone." % (path.name, launcher_folder(text)))
+        elif LAUNCHER_MARK in text:
             if sys.platform == "darwin":
                 say("  First run:  launchctl unload -w \"%s\"" % path)
             path.unlink()
-            say("  Removed the logon launcher: %s" % path)
+            say("  Removed the file that started FleetView with the computer: %s" % path)
         else:
             say("  %s was not made by this installer; left alone." % path)
     else:
-        say("  No logon launcher found. Nothing to remove.")
+        say("  FleetView was not set to start with the computer. Nothing to remove.")
     say("  If you started FleetView by hand with node watcher.js in a terminal you can see, close that terminal.")
     say("  Your config.json and this folder are left as they are. Delete the folder yourself if you want it gone.")
     return 0
@@ -506,7 +571,7 @@ def uninstall():
 # ---------- main ----------
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Install FleetView.")
-    ap.add_argument("--uninstall", action="store_true", help="remove the logon launcher this installer made")
+    ap.add_argument("--uninstall", action="store_true", help="stop FleetView and remove the file that starts it by itself when the computer starts")
     ap.add_argument("--stop", action="store_true", help="stop a FleetView this installer started")
     ap.add_argument("--yes", action="store_true", help="no questions; use the flags and the defaults found")
     ap.add_argument("--second-brain", help="path to your second brain vault")
@@ -515,8 +580,8 @@ def main(argv=None):
     ap.add_argument("--port", type=int, help="web page port (default 3010)")
     ap.add_argument("--projects-dir", help="where Claude Code keeps its logs (default ~/.claude/projects)")
     ap.add_argument("--no-ccusage", action="store_true", help="switch off the 5-hour and 7-day token panel")
-    ap.add_argument("--launcher", dest="launcher", action="store_true", default=None, help="add the hidden logon launcher")
-    ap.add_argument("--no-launcher", dest="launcher", action="store_false", help="do not add the logon launcher")
+    ap.add_argument("--launcher", dest="launcher", action="store_true", default=None, help="make FleetView start by itself, with no window, each time you switch on this computer and sign in")
+    ap.add_argument("--no-launcher", dest="launcher", action="store_false", help="do not make FleetView start by itself when the computer starts")
     ap.add_argument("--start", dest="start", action="store_true", default=None,
                     help="on its own: only start FleetView, no questions. With other flags: start it after installing")
     ap.add_argument("--no-start", dest="start", action="store_false", help="do not start it now")
@@ -531,6 +596,8 @@ def main(argv=None):
     install_flags = [x for x in (argv if argv is not None else sys.argv[1:]) if x not in ("--start",)]
     if a.start and not install_flags:
         return start_only()
+    if not check_python():
+        return 1
 
     interactive = not a.yes
     say("FleetView installer")
@@ -653,16 +720,19 @@ def main(argv=None):
     # 5
     want = a.launcher
     if want is None:
-        want = ask_yes("Start FleetView automatically, with no window, when you log in?", True, interactive) if interactive else False
+        want = ask_yes("Start FleetView by itself, with no window, each time you switch on this computer and sign in?",
+                       True, interactive) if interactive else False
     if want:
         res = install_launcher(node)
         p = launcher_path()
-        if res == "skipped" or p is None:
-            say("  Started at login: not set up.")
+        if res == "elsewhere":
+            say("  Starts with the computer: the FleetView in the other folder, as before.")
+        elif res == "skipped" or p is None:
+            say("  Starts with the computer: not set up.")
         else:
-            where = "your Startup folder" if sys.platform == "win32" else "your login items"
+            where = "your Startup folder" if sys.platform == "win32" else "your LaunchAgents folder (Mac)"
             verb = "was written into" if res == "written" else "is already in"
-            say("  Started at login: a small file called %s %s %s (%s)." % (p.name, verb, where, p))
+            say("  Starts with the computer: a small file called %s %s %s (%s)." % (p.name, verb, where, p))
 
     started = False
     already = False

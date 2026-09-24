@@ -8,11 +8,11 @@ Say yes when it offers to start FleetView, then open **http://localhost:3010/gra
 
 ![FleetView with made-up sessions](guide/img/fleetview-graph.png)
 
-Want to see it before your own sessions exist? `npm install` then `npm run demo`, and open http://localhost:3011/graph.html (made-up sessions, port 3011, Ctrl+C stops it; works in PowerShell, cmd and bash).
+Want to see it before your own sessions exist? `npm install` then `npm run demo`, and open http://localhost:3011/graph.html (made-up sessions, port 3011, Ctrl+C stops it; works in PowerShell, Command Prompt and a Mac terminal).
 
 ## What it shows
 
-- **Who needs you.** "2 need you" at the top, and a **Needs you** strip naming every session where **Claude's last message asked you something**, newest question first. It stays amber until you answer, up to `waiting_hours` (1 hour out of the box; after that it goes blue-grey). A reply that answers and asks nothing is not counted: it reads "answered 12 min ago". Dealt with one another way? Open it and press **Mark as done**.
+- **Who needs you.** "2 need you" at the top, and a **Needs you** strip naming every session where **Claude's last message asked you something** (a question mark at the end of any of its last 3 lines), newest question first. It stays amber until you answer, up to `waiting_hours` (1 hour out of the box; after that it goes blue-grey). A reply that answers and asks nothing is not counted: it reads "answered 12 min ago". Dealt with one another way? Open it and press **Mark as done**.
 - A dot (a hub) for each of your folders: your second brain, your CRM, your content engine, anything else you name. Sessions from any other folder hang off a hub called **Other**. A folder appears once it has a session today.
 - A circle for each Claude Code session today. The fill says what it is doing: green working, amber it asked you something (darker amber over 30 minutes old), violet it may need your approval (a tool call with no answer for 30 seconds — counted on its own, not as "need you"), blue-grey idle or answered-and-asked-nothing, grey with a tick for the ones you marked as done.
 - The letter inside is the model: **O** Opus, **S** Sonnet, **F** Fable, **M** Mythos, **H** Haiku, **?** any other model.
@@ -29,8 +29,8 @@ Want to see it before your own sessions exist? `npm install` then `npm run demo`
 
 ## What it needs
 
-- **Node.js 22 or newer** (24 is the current long-term support version). Check with `node --version`. Node 18 died 2025-04-30 and Node 20 died 2026-04-30. Get it from https://nodejs.org, `winget install OpenJS.NodeJS.LTS` (Windows) or `brew install node` (Mac).
-- **Python 3.11 or newer** for the installer. Check with `python --version`. The installer refuses anything older.
+- **Node.js 22 or newer** (24 is the current long-term support version). Check with `node --version`. Node 18 stopped getting security fixes on 2025-04-30, and Node 20 on 2026-04-30. Get it from https://nodejs.org, `winget install OpenJS.NodeJS.LTS` (Windows) or `brew install node` (Mac).
+- **Python 3.11 or newer** for the installer. Check with `python --version`. Python 3.10 gets security fixes only until 2026-10-31, and the installer refuses 3.10 and older.
 - **Claude Code.** If you have not used it yet, FleetView starts reading its log folder as soon as it appears.
 - Internet for `npm install` and the first run of the token panel (it downloads ccusage). The pages need nothing from the internet: React is stored in `public/vendor/`.
 
@@ -42,15 +42,15 @@ It adds no hooks, changes no settings and starts no agents. It only reads the lo
 
 | Command | What it does |
 |---|---|
-| `python install.py` | Checks Node.js, downloads 2 code packages, asks for your folders, writes `config.json`, offers a hidden logon start, starts FleetView. Changed answers restart it on the new settings |
+| `python install.py` | Checks Node.js, downloads 2 code packages, asks for your folders, writes `config.json`, offers to start FleetView by itself, with no window, each time you switch on your computer and sign in to Windows (no account needed), starts FleetView. Changed answers restart it on the new settings |
 | `python install.py --start` | Only starts FleetView, with your saved answers. No questions |
-| `python install.py --stop` | Stops FleetView however it was started (installer, logon or by hand). Checks it really is FleetView before stopping it |
-| `python install.py --uninstall` | Stops it and removes the logon file it made. Leaves everything else |
+| `python install.py --stop` | Stops FleetView however it was started (by the installer, by itself with the computer, or by hand). Checks it really is FleetView before stopping it |
+| `python install.py --uninstall` | Stops it and removes the Startup file that started it with the computer. Leaves everything else |
 | `python install.py --yes --second-brain PATH --crm PATH --folder "NAME=PATH" --port N --no-ccusage --no-launcher --no-start` | Install with no questions |
 | `node watcher.js` / `npm start` | Start FleetView in this terminal, showing any error |
-| `npm run demo` | Made-up sessions on port 3011 |
+| `npm run demo` | 8 made-up sessions in 4 folders on port 3011 |
 | `npm test` | 60 JavaScript checks against made-up sessions |
-| `python -m pytest -q` | 26 installer checks in a temp folder. 86 checks in total with `npm test`; both sets passed from a fresh copy on 2026-09-23 |
+| `python -m pytest -q` | 30 installer checks in a temp folder (install pytest once with `python -m pip install pytest`). 90 checks in total with `npm test`; both sets passed from a fresh copy on 2026-09-24 |
 
 ## Settings (`config.json`)
 

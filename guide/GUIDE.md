@@ -39,7 +39,7 @@ What each part of the picture means:
 
 - **The circle's colour** is what the session is doing:
   - **Green: working.** Claude is doing something right now.
-  - **Amber: it asked you something.** Claude's last message ends in a question and nobody has answered it. This is the one colour that means "go and type".
+  - **Amber: it asked you something.** Claude's last message ends in a question (a question mark at the end of any of its last 3 lines) and nobody has answered it. This is the one colour that means "go and type".
   - **Darker amber: it asked you over 30 minutes ago.** Still a question for you, but an older one, so it is dimmer than the question you were asked 2 minutes ago.
   - **Violet: it may need your approval.** Claude asked to run a tool and nothing has come back for over 30 seconds. That is either Claude Code asking your permission in that terminal, or a long command such as `npm install`. It is counted on its own, not as "need you".
   - **Blue-grey: nothing for you to do.** Either idle, or Claude answered and asked nothing. The line under the circle says which.
@@ -57,7 +57,7 @@ Hover over any circle and a label says, in words, what it is doing.
 
 ![Hovering over the CRM session that asked a question: what it is doing in words, how long ago it asked, its model, its cost and how full its context window is. Made-up data.](img/fleetview-hover.png)
 
-Click any circle and a side panel opens with the full detail and the last 10 entries in the session's log. Each entry is labelled **you typed** (your message), **Claude thinking** (its reasoning) or **Claude used** (a file it read or a command it ran). For a session that asked you something, the panel has a **Mark as done** button: press it when you have dealt with that question another way, so it stops counting. Press Escape to close the panel.
+Click any circle and a side panel opens with the full detail and the last 10 entries in the session's log. Each entry is labelled **you typed** (your message), **Claude thinking** (the start of what Claude wrote back) or **Claude used** (a file it read or a command it ran). For a session that asked you something, the panel has a **Mark as done** button: press it when you have dealt with that question another way, so it stops counting. Press Escape to close the panel.
 
 ![The side panel for a session that asked you something: when it asked, the Mark as done button, then model, cost, tokens and its last steps. Made-up data: the people and businesses named in it are invented.](img/fleetview-panel.png)
 
@@ -65,7 +65,7 @@ Click any circle and a side panel opens with the full detail and the last 10 ent
 
 There is also a card view at `http://localhost:3010/cards.html` (3010 is the port), with the same sessions, the same totals and the same colours as cards. It works with no internet.
 
-![The card view of the same made-up sessions: the ones that asked you something first, newest first, each saying when it asked. Each card names its folder once, with the git branch.](img/fleetview-grid.png)
+![The card view of the same made-up sessions: the ones that asked you something first, newest first, each saying when it asked. Each card names its folder once, with the git branch. Taken a few minutes after the graph picture, so the totals have moved on.](img/fleetview-grid.png)
 
 ## Why you would want it
 
@@ -140,7 +140,7 @@ Later that evening:
 
 ### The same evening: the other views on the same server
 
-The same evening Claude also added a map of all 73 of Ashley's agents, called FleetMap, and a view of agents passing work between his apps, called Comms Mesh. A small hidden file in the Windows Startup folder (programs in it start when you log in) started the server at logon. On 2026-07-02 a 3D video view, Fleet Cinema, was added to the same server; its Vault Galaxy view draws every note in his second brain as a star. None of these are in your download: they were built around Ashley's own agents and apps. They are shown here as Ashley built them.
+The same evening Claude also added a map of all 73 of Ashley's agents, called FleetMap, and a view of agents passing work between his apps, called Comms Mesh. A small file in the Windows Startup folder started the server by itself, with no window, each time Ashley switched on his computer and signed in to Windows. (Windows starts everything in that folder at that moment.) On 2026-07-02 a 3D video view, Fleet Cinema, was added to the same server; its Vault Galaxy view draws every note in his second brain as a star. None of these are in your download: they were built around Ashley's own agents and apps. They are shown here as Ashley built them.
 
 ![Ashley's real FleetMap on 2026-06-12: 73 agents in coloured teams, with Ashley in the centre and a key at the bottom left.](img/original-fleetmap-2026-06-12.png)
 
@@ -156,7 +156,7 @@ The same evening Claude also added a map of all 73 of Ashley's agents, called Fl
 
 - **2026-07-27:** Ashley's list of outside tools he tracks moved the Stargx dashboard from "give to members" to "keep an eye on": 10 stars, no change since 2026-03-09, "fine for us because we can fix it", but too thin to put in front of the 6 people paying for his Outliers programme at the time.
 - **2026-08-12:** the last day Ashley's own notes show FleetView running.
-- **2026-09-22:** nothing answered on port 3010, although the Startup file was still there. Why the logon start stopped working is not recorded. A copy started by hand from a temporary folder came up in about 2 seconds.
+- **2026-09-22:** nothing answered on port 3010, although the Startup file was still there. Why it stopped starting by itself when the computer started is not recorded. A copy started by hand from a temporary folder came up in about 2 seconds.
 
 ![Ashley's real FleetView on 2026-09-22, from that copy: 7 sessions round 4 of his folders: Nexus (his CRM), The Observatory (a research folder), SB and Second Brain (2 second-brain folders); the 5-hour window at 340.84M tokens used, 374.00M projected by the end, 26 minutes until it resets; 3.44B tokens (3.44 billion) over the last 7 days. In this old copy the ring around each circle used blue, amber and red, the same colours the circle itself uses for what the session is doing, so the 2 ran together. Your copy uses a plain grey ring.](img/original-fleetview-2026-09-22.png)
 
@@ -173,7 +173,7 @@ For this download we took Stargx's dashboard plus 3 of Ashley's additions (the g
 - His copy had no price for Opus 5, the model every session used that day, so it priced them at Sonnet 4.6 rates. Prices now come from a table checked on 2026-09-22 against Anthropic's pricing page, and a model with no price row shows "no price" instead of a guess.
 - His copy assumed every session had a 200,000-token context window. A session on a 1,000,000-token window showed 100% full. FleetView now switches to 1,000,000 when the model name ends in `[1m]` (the label Claude Code adds to a model running with the 1,000,000-token window) or a single turn uses more than 200,000 tokens.
 - A Haiku helper agent inside an Opus session was priced as Opus, and the helper's replies were counted into the main session's ring, so the ring read wrong. Each reply is now priced with its own model, and the ring counts only the main conversation.
-- The original let any computer on your network open the page, so anyone on the same wifi could read your session titles and folder paths. Yours only answers on this computer, and it checks which page is asking: if the asking page is anything other than FleetView itself, it refuses. So a website you visit cannot quietly read your session titles, folder paths and what you typed.
+- The original let any computer on your network open the page, so anyone on the same wifi could read your session titles and folder paths. Yours only answers on this computer, and it checks the address each request was sent to, refusing any request not sent to `localhost` or `127.0.0.1`. That stops a website you visit from pointing its own name at your computer to read your session titles, folder paths and what you typed.
 - His copy ran ccusage every 60 seconds all day. Yours runs it only while a FleetView page is open.
 - The card page loaded its drawing library, React, from the internet. Yours carries a copy, so it works offline.
 
@@ -184,7 +184,7 @@ For this download we took Stargx's dashboard plus 3 of Ashley's additions (the g
 | Set-up | Reads files Claude Code already writes. It adds no hooks (commands Claude Code would run by itself), changes no settings and keeps no database. Deleting the folder removes it completely. | Needs Node.js (free software that runs FleetView's server) version 22 or newer, and Python 3.11 or newer, which you may not have. |
 | Cost in tokens | Uses 0 Claude tokens. It is plain code reading files. | None. |
 | Cost in time | About 5 minutes to install. Starts in seconds: Ashley's log files, 3.2 gigabytes of them when we checked on 2026-09-22, were read and drawn in about 2 seconds. | The first read of a very large history takes longer and uses some processor time. |
-| What it shows | Every session in a single tab, including sessions started before FleetView, with the waiting ones first. The 5-hour gauge answers the question a subscriber actually asks: how much of my 5-hour allowance have I used, and where will I end up? | On 2026-06-21 Ashley ruled against a page that listed every agent event in a long running list as it happened: "I hate seeing a stream of info - It just means nothing." |
+| What it shows | Every session in a single tab, including sessions started before FleetView, with the waiting ones first. The 5-hour gauge shows how much of your 5-hour allowance you have used and where you will end up at this rate. | On 2026-06-21 Ashley ruled against a page that listed every agent event in a long running list as it happened: "I hate seeing a stream of info - It just means nothing." |
 | Waiting | Amber stays until you answer, and the Needs you strip says how long each has waited. | A session counts as waiting whenever Claude's last message ends in a question, including questions you have already dealt with another way. Press Mark as done on those. |
 | Accuracy | Prices checked on 2026-09-22; unknown models are flagged, not guessed. | Prices go out of date with every new model, and you must add each new model's prices to `lib/prices.json` yourself. The context window is a best estimate (see When it goes wrong). |
 | Upkeep | Small: 1 server file and 2 pages. Your own Claude can change it in minutes. | The free project it is built on, Stargx's claude-code-dashboard, is barely maintained: 13 people have bookmarked it on GitHub and nobody has changed the code since 2026-03-09 (checked 2026-09-22). If it breaks, you and your own Claude fix it. |
@@ -200,10 +200,12 @@ If you would rather have a bigger, polished tool that someone else maintains, lo
 
 ## Before you start
 
+**On a Mac:** a current Mac has a command called `python3` and none called `python`. Wherever this guide says `python`, type `python3`, and where it says `python -m pip`, type `python3 -m pip`. Paths in this guide are written the Windows way; on a Mac, `C:\Users\<you>` is your home folder, `~`, and a path such as `.claude\projects` is written `~/.claude/projects`.
+
 | You need | How to check | How to get it |
 |---|---|---|
 | Node.js 22 or newer | Open a terminal and type `node --version`. You should see v22 or higher. Node 18 stopped getting security fixes on 2025-04-30 and Node 20 on 2026-04-30, so the installer refuses anything older. | The LTS installer (LTS means long-term support, the version that goes on getting security fixes longest) from https://nodejs.org. On Windows you can instead type `winget install OpenJS.NodeJS.LTS` (the Windows installer tool). On a Mac, `brew install node` if you have Homebrew. Then open a new terminal. |
-| Python 3.11 or newer | `python --version` (on a Mac, `python3 --version`). Python 3.10 and older stop getting security fixes, so the installer refuses them. | https://www.python.org. On Windows, if typing `python` opens the Microsoft Store, install Python from python.org and tick "Add python.exe to PATH" (this lets you type `python` in any terminal), or type `py` instead of `python` in every command below. |
+| Python 3.11 or newer | `python --version` (on a Mac, `python3 --version`). Python 3.10 gets security fixes only until 2026-10-31 and older versions get none, so the installer refuses 3.10 and older. | https://www.python.org. On Windows, if typing `python` opens the Microsoft Store, install Python from python.org and tick "Add python.exe to PATH" (this lets you type `python` in any terminal), or type `py` instead of `python` in every command below. |
 | Git (the tool that copies the code from GitHub to your computer) | `git --version` | https://git-scm.com |
 | Claude Code, used at least once | Look for the folder `.claude\projects` in your home folder | You have this from the earlier sessions. If not, FleetView still installs and starts reading the folder as soon as it appears. |
 | Internet | Open any web page in your browser. If it loads, you have what FleetView needs | Needed for the install and for the first run of the 5-hour gauge (it downloads ccusage). The pages themselves need nothing from the internet. |
@@ -227,7 +229,7 @@ python install.py
 6. It asks for **any other project folders**, 1 at a time. If you keep a folder where you write your posts, add it here and give it a short name such as `Content Engine`. Press Enter on an empty line to finish.
 7. It asks for the **port**: the number at the end of the page's address (3010 gives http://localhost:3010). Press Enter for 3010, unless something else on your computer already uses 3010.
 8. It asks whether to switch on the **5-hour and 7-day token panel**. Say yes unless you have no internet.
-9. It asks whether to start FleetView **automatically when you log in, with no window**. On Windows this puts a small file called `FleetView.vbs` in your Startup folder. On a Mac it writes a launchd file (Apple's way of starting programs at login) and prints the command to switch it on now.
+9. It asks whether FleetView should **start by itself, with no window, each time you switch on your computer and sign in to Windows** (on a Mac, each time you log in to your Mac). No account is involved: this is your computer's own sign-in. On Windows this puts a small file called `FleetView.vbs` in your Startup folder, and Windows starts everything in that folder at that moment. On a Mac it writes a launchd file (Apple's way of starting a program by itself when you log in to your Mac) and prints the command to switch it on now.
 10. It asks whether to **start FleetView now**, with no window. Say yes.
 11. Open **http://localhost:3010/graph.html** in your browser. (`http://localhost:3010/` takes you there too.)
 
@@ -237,16 +239,16 @@ When it has worked you see your folders as hubs with today's sessions hanging of
 
 > **Note:** The 5-hour gauge says "first check" for up to a minute the first time, while your computer downloads ccusage. After that it updates about once a minute while the page is open, and the 7-day total about every 5 minutes.
 
-Running the installer again with the same answers changes nothing, and if FleetView is running it says so. If you change an answer, it saves your old settings as `config.json.bak-<date>` first, stops the running FleetView and starts it again on the new settings, so there is never more than 1 copy running.
+Running the installer again with the same answers changes nothing, and if FleetView is running it says so. If you change an answer, it saves your old settings as `config.json.bak-<date and time>` first (for example `config.json.bak-20260924-110312`), stops the running FleetView and starts it again on the new settings, so there is never more than 1 copy running.
 
 These commands run inside the FleetView folder. In a new terminal, type `cd outliers-ws-02-fleetview` first.
 
-- To stop FleetView: `python install.py --stop`. This finds it however it was started, including at logon.
+- To stop FleetView: `python install.py --stop`. This finds it however it was started, including when it started by itself with the computer.
 - To start it again: `python install.py --start`. This only starts it, with your saved answers. It asks no questions.
-- To remove the logon start as well: `python install.py --uninstall`. This stops FleetView and removes the Startup file it made.
+- To stop it starting by itself when the computer starts: `python install.py --uninstall`. This stops FleetView and removes the Startup file it made.
 - To remove it completely: uninstall, then delete the folder.
 
-> **Tip:** Want to see FleetView working before your own sessions exist? In the FleetView folder run `npm run demo`, then open http://localhost:3011/graph.html. It draws 6 made-up sessions on port 3011, so it never clashes with your own copy on 3010. The same command works in PowerShell, Command Prompt and a Mac terminal. Press Ctrl+C to stop it.
+> **Tip:** Want to see FleetView working before your own sessions exist? In a new terminal, type `cd outliers-ws-02-fleetview`, then `npm run demo`, then open http://localhost:3011/graph.html. It draws 8 made-up sessions in 4 folders (1 of them the Other hub) on port 3011, so it never clashes with your own copy on 3010. The same command works in PowerShell, Command Prompt and a Mac terminal. Press Ctrl+C to stop it.
 
 ## Using it day to day
 
@@ -260,7 +262,7 @@ These commands run inside the FleetView folder. In a new terminal, type `cd outl
 - **Watch for the red !** beside a circle. It means that session's context window is over 85% full. Start a fresh session for the next task, or ask it to summarise and carry on.
 - **Set your budgets once.** Click **5-hour window** in the top bar and type a token number, such as `100M` (100 million). Do the same for **7 days**. Allow browser notifications when asked. With no budget the gauge stays grey; with a budget it turns amber at 70% and red at 90% of the projected total, and you get 1 notice when the projection passes your budget. The budgets are saved in this browser only. If FleetView cannot read what you typed, it says so and keeps your old budget.
 - **See everything.** The graph draws every working and waiting session, plus the 3 most recent idle ones per folder. When some idle sessions are left out, the top bar says how many and offers **show all**, and each folder hub says "+2 idle not drawn". You can also open http://localhost:3010/graph.html?all=1 to draw every session.
-- **Busy days.** As soon as any 1 folder has more than 4 sessions, or you have more than 12 in total, the graph switches to 1 column per folder, with the sessions that asked you something at the top. 30 sessions stay readable on a laptop screen: we checked it in a browser window 1366 pixels wide and 768 pixels tall, and all 58 pieces of writing on the page, the session titles and the lines under them, stayed clear of each other.  Each column heading says how many sessions it has and how many need you.
+- **Busy days.** As soon as any 1 folder has more than 4 sessions, or you have more than 12 in total, the graph switches to 1 column per folder, with the sessions that asked you something at the top. 30 sessions stay readable on a laptop screen: we checked it in a browser window 1366 pixels wide and 768 pixels tall, and all 58 pieces of writing on the page, the session titles and the lines under them, stayed clear of each other. Each column heading says how many sessions it has and how many need you.
 
 ![30 made-up sessions: 1 column per folder, the ones that asked you something at the top. Of the 30, 5 asked a question, 3 are waiting on a tool, 5 are working and the rest have answered or are idle.](img/thirty-sessions.png)
 
@@ -270,9 +272,23 @@ These commands run inside the FleetView folder. In a new terminal, type `cd outl
 
 ## Fit it to your own AI system
 
-Change it until it matches how you work. It is yours now. FleetView is the clearest example in this set of 4, because it did not start as Ashley's at all. It started as somebody else's free dashboard, published with its code open to read, that showed 1 card per session and nothing more. Ashley moved it off port 3001 so it would stop clashing with agent-flow, replaced its price table after finding 2 models charged at Sonnet's cheaper rates instead of their own, and then wrote the graph page you are looking at from scratch, in plain code with no libraries. That same evening he added the 5-hour and 7-day usage gauges, budget alarms you set by clicking a gauge (green under 70%, amber to 90%, red above, with a browser alert when the projection passes what you set), and a second page that drew all 73 of his agents as a map. By the end of the day almost nothing on his screen had come with the original.
+**The safe way.** Try every change on a copy of FleetView first, so the FleetView you use every day keeps running while you experiment. 5 steps:
 
-Each change below is a prompt you can paste into Claude Code, opened in your FleetView folder. Claude reads the code and makes the change. Then run `npm test`, which runs FleetView's own checks; every line should say it passed. Then restart FleetView with `python install.py --stop` and `python install.py --start`.
+1. Make the copy. In File Explorer, right-click the `outliers-ws-02-fleetview` folder in your home folder, choose Copy, then Paste in the same place, and rename the copy `fleetview-test`. On a Mac, in Finder, click the folder and choose File, then Duplicate, and rename it the same way.
+2. Give the copy its own port. In `fleetview-test`, open `config.json` in a text editor such as Notepad, change `"port": 3010` to `"port": 3012` and save. Never use 3001, 3020 or 4040: the other 3 pieces in this set use them.
+3. In `fleetview-test`, delete the file `fleetview.pid` if it is there. It is the record of your everyday FleetView, copied across with the folder. (If you forget, the installer sees that the record belongs to another folder and leaves your everyday FleetView alone.)
+4. Start the copy. Open a new terminal (it opens in your home folder), type `cd fleetview-test`, then `python install.py --start`, and open http://localhost:3012/graph.html. In that folder, `python install.py --stop` stops the copy only. You do not need to run `python install.py` on its own in the copy: it would only ask the install questions again.
+5. When a change works, make the same change in your everyday `outliers-ws-02-fleetview` folder and restart FleetView there: in the terminal, type `cd ../outliers-ws-02-fleetview`, then `python install.py --stop`, then `python install.py --start`.
+
+The copy reads the same Claude Code log files as your everyday FleetView. Both only read them, so neither gets in the other's way.
+
+FleetView has 2 sets of checks, and a change should pass both. Run them in the copy. `npm test` runs FleetView's own 60 checks; near the end, look for `pass 60` and `fail 0`. `python -m pytest -q` runs the installer's 30 checks and should end with "30 passed" (on a Mac, "27 passed, 3 skipped": those 3 check the Windows Startup folder). It needs pytest, a free Python testing tool; install it once with `python -m pip install pytest`. If a check fails and its message says a model name is in your logs with no row in `lib/prices.json`, Claude has released a model FleetView has no price for: add it to `lib/prices.json` (see Using it day to day). Any other failure means the change broke something, so put it back before you go on.
+
+Read "Every command and setting" near the end of this guide before you ask Claude for a change, because much of what you want is already a setting in `config.json`. The setting to leave alone is `host`: `127.0.0.1` means only this computer can open the page. Put your computer's network address there instead and every other computer on the same wifi can open the page and read your sessions, what you typed and your usage.
+
+Change it until it matches how you work. FleetView did not start as Ashley's: it started as somebody else's free dashboard, published with its code open to read, that showed 1 card per session and nothing more. Ashley moved it off port 3001 so it would stop clashing with agent-flow, replaced its price table after finding 2 models charged at Sonnet's cheaper rates instead of their own, and then had Claude write the graph page you are looking at from scratch, in plain code with no libraries. That same evening he had Claude add the 5-hour and 7-day usage gauges, budget alarms you set by clicking a gauge (green under 70%, amber to 90%, red above, with a browser alert when the projection passes what you set), and a second page that drew all 73 of his agents as a map.
+
+Each change below is a prompt you can paste into Claude Code, opened in your copy, the `fleetview-test` folder: in a new terminal, type `cd fleetview-test`, then `claude`. Claude reads the code and makes the change. Then run both sets of checks in the copy, `npm test` and `python -m pytest -q`; every check should pass. To see the change, run `python install.py --stop` and then `python install.py --start` in the copy, and reload http://localhost:3012/graph.html. When you are happy, paste the same prompt into Claude Code opened in your everyday `outliers-ws-02-fleetview` folder, run both sets of checks there, and restart it with `python install.py --stop`, then `python install.py --start`.
 
 ![Which file each paste-in prompt below changes.](img/where-to-change.png)
 
@@ -346,19 +362,19 @@ In this FleetView folder, make public/graph.html work when shown inside another 
 
 | Command | What it does |
 |---|---|
-| `python install.py` | Checks Node.js, downloads 2 code packages, asks for your folders, writes the settings file `config.json`, offers to start FleetView automatically when you log in with no window on screen, then starts FleetView |
+| `python install.py` | Checks Node.js, downloads 2 code packages, asks for your folders, writes the settings file `config.json`, offers to make FleetView start by itself, with no window, when the computer starts, then starts FleetView |
 | `python install.py --start` | Starts FleetView in the background with your saved answers. No questions. Says so if it is already running |
 | `python install.py --stop` | Stops FleetView, however it was started. It checks it is really FleetView first, so it never ends another program |
-| `python install.py --uninstall` | Stops FleetView and removes the logon file it made. Leaves your settings and this folder |
-| `python install.py --yes` | Installs with no questions, using the options below (the words starting with `--`) and the defaults it finds |
+| `python install.py --uninstall` | Stops FleetView and removes the Startup file it made, so it no longer starts by itself when the computer starts. Leaves your settings and this folder |
+| `python install.py --yes` | Installs with no questions, using the options below (the words starting with `--`) and the defaults it finds. It does not start FleetView or make it start with the computer unless you add `--start` and `--launcher` |
 | `--second-brain PATH`, `--crm PATH`, `--folder "NAME=PATH"` | Give your folders on the command line (`--folder` can be repeated) |
 | `--port 3010`, `--projects-dir PATH`, `--no-ccusage` | Choose the port, a different Claude Code log folder, or switch the token panel off |
-| `--launcher` / `--no-launcher`, `--no-start` | Add or skip the logon start; do not start FleetView now |
+| `--launcher` / `--no-launcher`, `--no-start` | Make FleetView start by itself when the computer starts, or not; do not start FleetView now |
 | `node watcher.js` or `npm start` | Start FleetView in this terminal, showing any error it hits. Ctrl+C stops it |
 | `npm run demo` | Made-up sessions on port 3011 (see the tip in Install it) |
 | `node tools/make-demo.js <folder> --sessions 30` | Writes a made-up busy day of 30 sessions into a folder you name, to see what a full screen looks like |
 | `npm test` | Runs FleetView's own 60 checks against made-up sessions and prints a line per check saying whether it passed |
-| `python -m pytest -q` | Runs the installer's own 26 checks in a temporary folder, using pytest (a Python testing tool; install it with `pip install pytest`). 86 checks in total with `npm test`; both sets passed from a fresh copy on 2026-09-23 |
+| `python -m pytest -q` | Runs the installer's own 30 checks in a temporary folder, using pytest (a free Python testing tool; install it once with `python -m pip install pytest`). 90 checks in total with `npm test`; both sets passed from a fresh copy on 2026-09-24 |
 
 ### Settings in `config.json`
 
@@ -383,7 +399,7 @@ After any change, restart FleetView: `python install.py --stop`, then `python in
 
 - `fleetview.pid`: the running FleetView's process number and port, so `--stop` can find it. Removed when it stops.
 - `fleetview.log`: what FleetView printed when it was started in the background. If it will not start, the reason is at the end of this file.
-- `config.json.bak-<date>`: your old settings, saved whenever the installer changed them.
+- `config.json.bak-<date and time>`, for example `config.json.bak-20260924-110312`: your old settings, saved whenever the installer changed them.
 
 ### Advanced: settings from the terminal
 
@@ -397,16 +413,16 @@ After any change, restart FleetView: `python install.py --stop`, then `python in
 
 | What you see | Why | The fix |
 |---|---|---|
-| A red **FleetView stopped** banner | The FleetView program is no longer running, so the page is not getting updates. On Ashley's computer on 2026-09-22 the logon start had stopped working; the reason was never recorded. | Run `python install.py --start` in the FleetView folder. The page picks up by itself. If it will not start, read the end of `fleetview.log`, or run `node watcher.js` to see the error. |
+| A red **FleetView stopped** banner | The FleetView program is no longer running, so the page is not getting updates. On Ashley's computer on 2026-09-22 FleetView had stopped starting by itself when the computer started; the reason was never recorded. | Run `python install.py --start` in the FleetView folder. The page picks up by itself. If it will not start, read the end of `fleetview.log`, or run `node watcher.js` to see the error. |
 | "Port 3010 is already in use" | Another program is using that port. On 2026-06-12 another tool, agent-flow (piece 1 of 4), was already on 3001, which is why FleetView moved to 3010. | Open http://localhost:3010/graph.html; if FleetView is there, it is already running. If not, run `python install.py` again and choose another port. |
-| The logon start is there but the page does not open after a restart | The Startup file names the exact folder Node.js was in when you installed FleetView. If you reinstalled Node.js somewhere else, the file still names the old folder. | Run `python install.py` again and press Enter at each question; it rewrites the logon file. |
+| FleetView is set to start by itself, but the page does not open after you restart the computer | The Startup file names the exact folder Node.js was in when you installed FleetView. If you reinstalled Node.js somewhere else, the file still names the old folder. | Run `python install.py` again and press Enter at each question; it writes the Startup file again. |
 | `python` opens the Microsoft Store | Windows ships a shortcut that points at the Store until Python is installed. | Install Python from python.org and tick "Add python.exe to PATH" (this lets you type `python` in any terminal), or type `py` instead of `python`. |
 | The installer says Node.js is too old | FleetView needs Node.js 22 or newer. | Install the LTS version from https://nodejs.org, open a new terminal, run `python install.py` again. |
 | The installer says Python is too old | FleetView needs Python 3.11 or newer. | Install it from https://python.org, tick "Add python.exe to PATH", open a new terminal, run `python install.py` again. |
 | Nothing is amber, but you know a session is waiting | Amber means Claude's last message asked you something. A session that stopped on a statement ("Done, saved.") is blue-grey and reads "answered 12 min ago". A question older than `waiting_hours` (1 hour) has also stopped counting. | Nothing to fix: open the session from its folder column. To keep older questions counting, raise `waiting_hours` in `config.json`. |
 | A session sits on "may need approval" for a long time | Claude asked to run a tool and nothing has come back. Either Claude Code is asking your permission in that terminal, or the command really is that long. | Look at that terminal and answer the permission question, or leave it: the violet circle is not counted in "need you". |
 | **A wide amber banner: "Your settings file could not be read"** | `config.json` is damaged. Saving it from Notepad or PowerShell adds an invisible mark at the start of the file; a comma after the last item, a `//` comment, or a half-saved file do the same. FleetView keeps the port it last ran on, so the page you already have open still works, but none of your folder names are in use until you fix the file. | The banner names the fault, and the line number when there is one. Fix it, or run `python install.py` to write the file again. Your file is never changed for you. |
-| **FleetView will not start, and says "FleetView was NOT started"** | `config.json` is damaged and FleetView has no record of the port it last ran on, so it will not guess one. All 4 ways of starting it refuse the same way: `python install.py --start`, `npm start`, `node watcher.js` and the logon start. Your settings are never quietly thrown away. | Read the 4 lines it prints: they name the fault and the line it is on. Fix that line, or run `python install.py` to write the file again. Started from the logon file, those 4 lines are at the end of `fleetview.log` in the FleetView folder. |
+| **FleetView will not start, and says "FleetView was NOT started"** | `config.json` is damaged and FleetView has no record of the port it last ran on, so it will not guess one. All 4 ways of starting it refuse the same way: `python install.py --start`, `npm start`, `node watcher.js` and the Startup file that starts it with the computer. Your settings are never quietly thrown away. | Read the 4 lines it prints: they name the fault and the line it is on. Fix that line, or run `python install.py` to write the file again. When it was started by that Startup file, those 4 lines are at the end of `fleetview.log` in the FleetView folder. |
 | A session shows "no price" | Its model has no row in `lib/prices.json`. Ashley's June copy had no Opus 5 row and silently used Sonnet 4.6 rates, which made every cost wrong. | Add the model's row from https://platform.claude.com/docs/en/about-claude/pricing and restart. |
 | A red **!** beside a circle | That session's context window is over 85% full. | Start a fresh session for the next task, or ask this one to summarise and carry on. |
 | A ring sits at 100% on a long session | The session has a 1,000,000-token window, but FleetView has not yet seen either sign of it: a model name ending in `[1m]`, or a single turn over 200,000 tokens. Ashley's copy always assumed 200,000. | FleetView switches to a 1,000,000-token window when the model name ends in `[1m]` or a single turn uses more than 200,000 tokens. The side panel says which of those 2 reasons it went on. Until then, a ring on a session with the 1,000,000-token window reads too full. |

@@ -6,6 +6,7 @@
 // It changes nothing in Claude Code: no hooks, no settings, no database.
 'use strict';
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const os = require('os');
 const { exec, execFile } = require('child_process');
@@ -61,6 +62,12 @@ function loadConfig() {
 }
 const CFG = loadConfig();
 const PID_FILE = path.join(path.dirname(path.resolve(CFG.file)), 'fleetview.pid');
+// Which folder this FleetView keeps its fleetview.pid in, as a short fingerprint rather than the path
+// itself. install.py compares it with its own folder, so --stop in a COPY of the folder (which carries
+// a copy of fleetview.pid) never stops the FleetView in the original folder. Added 2026-09-24.
+const FOLDER_ID = crypto.createHash('sha256')
+  .update(process.platform === 'win32' ? path.dirname(PID_FILE).toLowerCase() : path.dirname(PID_FILE))
+  .digest('hex').slice(0, 16);
 const groupOf = makeGrouper(CFG.folders);
 const store = createStore({ waitingHours: CFG.waitingHours, freshMinutes: CFG.freshMinutes });
 
@@ -162,7 +169,7 @@ app.get('/api/meta', (req, res) => {
     configError: CFG.configError,
     logsFolderFound: fs.existsSync(CFG.projectsDir),
     logsFolder: CFG.hidePaths ? '(hidden)' : CFG.projectsDir,
-    pid: process.pid, port: CFG.port,
+    pid: process.pid, port: CFG.port, folderId: FOLDER_ID,
   });
 });
 
