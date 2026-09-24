@@ -146,7 +146,9 @@ def find_vaults():
     """Obsidian vaults (folders with a .obsidian folder) in the usual places, 2 levels deep."""
     found = []
     home = Path.home()
-    for base in (home / "Documents", home):
+    # A Mac looks outside Documents first: macOS may refuse a program that starts by itself
+    # access to ~/Documents, so the Mac guides put the Second Brain at ~/Second Brain.
+    for base in ((home, home / "Documents") if sys.platform == "darwin" else (home / "Documents", home)):
         if not base.is_dir():
             continue
         try:
@@ -660,7 +662,10 @@ def main(argv=None):
     old_folders = {f.get("name"): f.get("path") for f in old.get("folders", []) if isinstance(f, dict)}
     vaults = find_vaults()
     home = Path.home()
-    sb_default = a.second_brain or old_folders.get("Second Brain") or guess(vaults, ["brain", "second"], home / "Documents" / "Second Brain")
+    sb_fallback = home / "Documents" / "Second Brain"
+    if sys.platform == "darwin" and (home / "Second Brain").is_dir():
+        sb_fallback = home / "Second Brain"
+    sb_default = a.second_brain or old_folders.get("Second Brain") or guess(vaults, ["brain", "second"], sb_fallback)
     crm_default = a.crm or old_folders.get("CRM") or guess(vaults, ["crm"], home / "CRM")
 
     say("")
